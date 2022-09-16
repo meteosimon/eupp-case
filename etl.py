@@ -2,6 +2,7 @@ import xarray as xr
 import fsspec
 import os
 import pickle
+import pandas as pd
 
 def step_to_hours(x):
     """step_to_hours(x)
@@ -66,31 +67,49 @@ if __name__ == "__main__":
 
     cachefile = "_data.pickle"
     csvfile   = f"data_{STATION_ID}_{step_to_hours(STEP):03d}.csv"
-
     print(f"Output file name: {csvfile}")
 
     # Loading data (uses cache file if existing)
     [fcs, obs] = get_data(cachefile)
 
     # -----------------------------------
-    # Processing data
-    # -----------------------------------
-    fcs_subset = fcs[['valid_time', 't2m']].loc[subset]
+    # Processing observation data
     obs_subset = obs[['t2m']].loc[subset]
-    obs_subset = obs_subset.rename({'t2m': 't2m_obs'})
-    
-    print("Merge Fx and Obs")
-    dsmerge = xr.combine_by_coords([obs_subset, fcs_subset], combine_attrs='drop_conflicts')
-    
-    df_obs = dsmerge['t2m_obs'].to_dataframe()
-    df_obs = df_obs[['t2m_obs']]
-    
-    dfmerged = dsmerge.to_dataframe()
-    df = dfmerged[['t2m']].unstack('number')
-    df.columns = [f't2m_{x:02d}' for x in df.columns.droplevel()] # drop multi-index on columns; rename columns
-    df.index = df.index.droplevel(1) # drop multi-index on rows
-    
-    df_final = df_obs.merge(df, on='time')
-    
-    print("Store")
+    df_obs = obs_subset.rename({'t2m': 't2m_obs'}).to_dataframe()[["t2m_obs"]]
+
+
+    #print("Merge Fx and Obs")
+    #dsmerge = xr.combine_by_coords([obs_subset, fcs_subset], combine_attrs='drop_conflicts')
+    #dfmerged = dsmerge.to_dataframe()
+
+
+    # -----------------------------------
+    # Processing forecast data
+    fcs_subset = fcs[['valid_time', 't2m']].loc[subset]
+    df_fcs = fcs_subset[['t2m']].to_dataframe()[["t2m"]].unstack('number')
+    # drop multi-index on columns; rename columns
+    df_fcs.columns = [f't2m_{x:02d}' for x in df_fcs.columns.droplevel()]
+    df_fcs.index   = df_fcs.index.droplevel(1)
+
+    # Calculate mean and standard deviation (including control run)
+    tmp_mean = df_fcs.mean(axis = 1)
+    tmp_std  = df_fcs.std(axis = 1)
+
+    # Extract valid time
+    vtime = fcs_subset[["valid_time"]].to_dataframe()[["valid_time"]]
+
+    # Combine valid time, observation, ensemble mean and standard deviation
+    # as well as the individual forecasts
+    data = pd.concat([vtime, df_obs, tmp_mean, tmp_std, df_fcs], axis = 1)
+    del tmp_mean, tmp_std
+
+    print(f"Save final data set to {csvfile} now")
     df_final.to_csv(csvfile)
+
+
+
+
+
+
+
+
