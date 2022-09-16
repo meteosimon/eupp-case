@@ -9,9 +9,8 @@ format:
 ---
 
 ```{r setup}
-IFILE <- "data_5371_098.csv"
+IFILE <- "euppens_5839_120.csv"
 df <- read.csv(IFILE)
-df$yday <- as.POSIXlt(df$valid_time)$yday
 df$log_ens_sd <- log(df$ens_sd)
 ```
 
@@ -21,15 +20,27 @@ plot(t2m_obs ~ yday, df)
 
 ```{r model}
 library("bamlss")
-b <- bamlss(list(t2m_obs ~ s(yday, bs = "cc", by = ens_mean), ~ s(yday, bs = "cc", by = log_ens_sd)), data = df)
+f <- list(
+    t2m_obs ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = ens_mean),
+    ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = log_ens_sd)
+)
+b <- bamlss(f, data = df)
 ```
 
 ```{r plot-effects}
-par(mfrow = c(1, 2))
+par(mfrow = c(2, 2))
 plot(b)
 ```
 
 ```{r plot-diagnostics}
 par(mfrow = c(1, 2))
 plot(b, which = c("hist-resid", "qq-resid"))
+```
+
+```{r predict}
+nd <- data.frame(yday = 0:366, ens_mean = 1, log_ens_sd = 1)
+fit_beta0 <- predict(b, nd, term = "s(yday)", intercept = FALSE, type = "link", FUN = c95, model = "mu")
+fit_beta1 <- predict(b, nd, term = "s(yday,by=ens_mean)", intercept = FALSE, type = "link", FUN = c95, model = "mu")
+fit_gamma0 <- predict(b, nd, term = "s(yday)", intercept = FALSE, type = "link", FUN = c95, model = "sigma")
+fit_gamma1 <- predict(b, nd, term = "s(yday,by=log_ens_sd)", intercept = FALSE, type = "link", FUN = c95, model = "sigma")
 ```

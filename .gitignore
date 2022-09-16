@@ -10,6 +10,7 @@
 # Session Data files
 .RData
 *.csv
+*.html
 
 # User-specific files
 .Ruserdata
