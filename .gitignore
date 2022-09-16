@@ -2,6 +2,11 @@
 .Rhistory
 .Rapp.history
 
+# Cache file
+/_data.pickle
+# Final csv file
+/data.csv
+
 # Session Data files
 .RData
 *.csv
@@ -38,3 +43,4 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
