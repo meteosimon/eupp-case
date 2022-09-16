@@ -92,8 +92,8 @@ if __name__ == "__main__":
     df_fcs.index   = df_fcs.index.droplevel(1)
 
     # Calculate mean and standard deviation (including control run)
-    tmp_mean = df_fcs.mean(axis = 1)
-    tmp_std  = df_fcs.std(axis = 1)
+    tmp_mean = df_fcs.mean(axis = 1).to_frame("ens_mean")
+    tmp_std  = df_fcs.std(axis = 1).to_frame("ens_sd")
 
     # Extract valid time
     vtime = fcs_subset[["valid_time"]].to_dataframe()[["valid_time"]]
