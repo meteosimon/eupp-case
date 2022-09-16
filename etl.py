@@ -1,9 +1,53 @@
-import xarray as xr
-import fsspec
+#!/usr/bin/env python3
+# -------------------------------------------------------------------
+# Small downloader for a toy/demo data set of ensemble forecasts
+# and corresponding observations from the European Postprocessing
+# Benchmark data set.
+#
+# Authors: Thorsten Simon and Reto Stauffer
+# Date: 2022-09-16
+# -------------------------------------------------------------------
+
 import os
 import pickle
-import pandas as pd
+import fsspec
 
+import xarray as xr
+import pandas as pd
+import logging as log
+
+log.basicConfig(level = log.INFO)
+
+# -------------------------------------------------------------------
+def get_data(cachefile):
+    """get_data(cachefile)
+
+    ... [tbd]
+    """
+    assert isinstance(cachefile, str), TypeError("argument 'cachefile' must be string")
+    # Prepare data if needed
+    if not os.path.isfile(cachefile):
+        log.info(f"{cachefile} not existing: Downloading data")
+        target_fcs = fsspec.get_mapper("https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_ensemble_forecasts_surface_germany.zarr")
+        fcs = xr.open_zarr(target_fcs)
+
+        log.info("Load and subset Obs")
+        target_obs = fsspec.get_mapper("https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_forecasts_observations_surface_germany.zarr")
+        obs = xr.open_zarr(target_obs)
+
+        with open(cachefile, "wb") as fid:
+            log.info(f"Saving data into {cachefile}")
+            pickle.dump([fcs, obs], fid)
+
+    # Read prepared data from pickle file
+    with open(cachefile, "rb") as fid:
+        log.info(f"Reading data from {cachefile}")
+        [fcs, obs] = pickle.load(fid)
+
+    return [fcs, obs]
+
+
+# -------------------------------------------------------------------
 def step_to_hours(x):
     """step_to_hours(x)
 
@@ -22,94 +66,93 @@ def step_to_hours(x):
     """
     import re
     assert isinstance(x, str), TypeError("argument 'x' must be string")
-    tmp = re.match("^([0-9]+)\sdays ([0-9])+:00:00$", STEP)
+    tmp = re.match("^([0-9]+)\sdays ([0-9]+):00:00$", x)
     assert isinstance(tmp, re.Match), ValueError("wrong format of object 'x'")
     return int(tmp[1]) * 24 + int(tmp[2])
 
 
-def get_data(cachefile):
-    """get_data(cachefile)
+# -------------------------------------------------------------------
+def get_csv_filename(station_id, step, prefix = "euppens"):
+    """get_csv_filename(station_id, step)
 
-    ... [tbd]
+    Params
+    ------
+    station_id : int
+        Station identifier.
+    step : str
+        String of format 'X days HH:00:00' minutes. Will be parsed
+        to calculate forecast hours (step in hours).
+    prefix : str
+        Prefix for the file name, defaults to 'euppens'.
+
+    Return
+    ------
+    str : Name of the CSV file to store the final data set.
     """
-    assert isinstance(cachefile, str), TypeError("argument 'cachefile' must be string")
-    # Prepare data if needed
-    if not os.path.isfile(cachefile):
-        print(f"{cachefile} not existing: Downloading data")
-        target_fcs = fsspec.get_mapper("https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_ensemble_forecasts_surface_germany.zarr")
-        fcs = xr.open_zarr(target_fcs)
-        
-        print("Load and subset Obs")
-        target_obs = fsspec.get_mapper("https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_forecasts_observations_surface_germany.zarr")
-        obs = xr.open_zarr(target_obs)
-    
-        with open(cachefile, "wb") as fid:
-            print(f"Save data into {cachefile}")
-            pickle.dump([fcs, obs], fid)
-    
-    # Read prepared data from pickle file
-    with open(cachefile, "rb") as fid:
-        print(f"Reading data from {cachefile}")
-        [fcs, obs] = pickle.load(fid)
-
-    return [fcs, obs]
-
+    assert isinstance(station_id, int), TypeError("argument 'station_id' must be int")
+    assert isinstance(step, str),       TypeError("argument 'step' must be str")
+    assert isinstance(prefix, str),     TypeError("argument 'prefix' must be str")
+    return f"{prefix}_{station_id}_{step_to_hours(step):03d}.csv"
 
 # -------------------------------------------------------------------
 # Main part of the Script
 # -------------------------------------------------------------------
 if __name__ == "__main__":
 
-    # Configuration
-    STATION_ID = 5371
-    STEP   = "4 days 12:00:00"
-    subset = {'station_id': STATION_ID, 'step': STEP}
+    # Stations and forecast steps (lead times) to process
+    stations = {"Wasserkuppe": 5371, "Emden": 5839, "Oberstdorf": 3730}
+    steps    = ["4 days 12:00:00", "5 days 00:00:00"]
 
-    cachefile = "_data.pickle"
-    csvfile   = f"data_{STATION_ID}_{step_to_hours(STEP):03d}.csv"
-    print(f"Output file name: {csvfile}")
+    cachefile = "_data.pickle" # Used to cache the data request
 
     # Loading data (uses cache file if existing)
     [fcs, obs] = get_data(cachefile)
 
-    # -----------------------------------
-    # Processing observation data
-    obs_subset = obs[['t2m']].loc[subset]
-    df_obs = obs_subset.rename({'t2m': 't2m_obs'}).to_dataframe()[["t2m_obs"]]
+    # Looping over all stations/steps
+    for station_name,station_id in stations.items():
+        for step in steps:
+
+            # -----------------------------------
+            # Define output file name and subset args
+            log.info(f"Processing data for station {station_name} (id {station_id}), {step} ahead.")
+            csvfile = get_csv_filename(station_id, step)
+            subset = {"station_id": station_id, "step": step}
+            if os.path.isfile(csvfile): continue # Skip if output file exists
+
+            # -----------------------------------
+            # Prepare observation data
+            obs_subset = obs[['t2m']].loc[subset]
+            df_obs = obs_subset.rename({'t2m': 't2m_obs'}).to_dataframe()[["t2m_obs"]]
+
+            # -----------------------------------
+            # Prepare forecast data
+            fcs_subset = fcs[['valid_time', 't2m']].loc[subset]
+            df_fcs = fcs_subset[['t2m']].to_dataframe()[["t2m"]].unstack('number')
+            # drop multi-index on columns; rename columns
+            df_fcs.columns = [f't2m_{x:02d}' for x in df_fcs.columns.droplevel()]
+            df_fcs.index   = df_fcs.index.droplevel(1)
+
+            # -----------------------------------
+            # Calculate ensemble mean and standard deviation (including control run)
+            tmp_mean = df_fcs.mean(axis = 1).to_frame("ens_mean")
+            tmp_std  = df_fcs.std(axis = 1).to_frame("ens_sd")
+
+            # -----------------------------------
+            # Extract valid time, append julian day (0-based; 0 = January 1th)
+            vtime = fcs_subset[["valid_time"]].to_dataframe()[["valid_time"]]
+            vtime["yday"] = vtime.valid_time.apply(lambda x: int(x.strftime("%j")) - 1)
+
+            # -----------------------------------
+            # Combine valid time, observation, ensemble mean and standard deviation
+            # as well as the individual forecasts
+            data = pd.concat([vtime, df_obs, tmp_mean, tmp_std, df_fcs], axis = 1)
+            del tmp_mean, tmp_std, vtime
+
+            log.info(f"Writing final data set to {csvfile} now")
+            data.to_csv(csvfile)
+
+            del subset, csvfile, data, df_fcs, df_obs
 
 
-    #print("Merge Fx and Obs")
-    #dsmerge = xr.combine_by_coords([obs_subset, fcs_subset], combine_attrs='drop_conflicts')
-    #dfmerged = dsmerge.to_dataframe()
-
-
-    # -----------------------------------
-    # Processing forecast data
-    fcs_subset = fcs[['valid_time', 't2m']].loc[subset]
-    df_fcs = fcs_subset[['t2m']].to_dataframe()[["t2m"]].unstack('number')
-    # drop multi-index on columns; rename columns
-    df_fcs.columns = [f't2m_{x:02d}' for x in df_fcs.columns.droplevel()]
-    df_fcs.index   = df_fcs.index.droplevel(1)
-
-    # Calculate mean and standard deviation (including control run)
-    tmp_mean = df_fcs.mean(axis = 1).to_frame("ens_mean")
-    tmp_std  = df_fcs.std(axis = 1).to_frame("ens_sd")
-
-    # Extract valid time
-    vtime = fcs_subset[["valid_time"]].to_dataframe()[["valid_time"]]
-
-    # Combine valid time, observation, ensemble mean and standard deviation
-    # as well as the individual forecasts
-    data = pd.concat([vtime, df_obs, tmp_mean, tmp_std, df_fcs], axis = 1)
-    del tmp_mean, tmp_std
-
-    print(f"Save final data set to {csvfile} now")
-    data.to_csv(csvfile)
-
-
-
-
-
-
-
+    log.info("That's the end my friend.")
 
