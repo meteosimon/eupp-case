@@ -104,7 +104,7 @@ if __name__ == "__main__":
     del tmp_mean, tmp_std
 
     print(f"Save final data set to {csvfile} now")
-    df_final.to_csv(csvfile)
+    data.to_csv(csvfile)
 
 
 
