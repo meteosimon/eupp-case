@@ -1,0 +1,35 @@
+---
+title: "EUPP Case"
+format:
+  html:
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    self-contained: true
+---
+
+```{r setup}
+IFILE <- "data_5371_098.csv"
+df <- read.csv(IFILE)
+df$yday <- as.POSIXlt(df$valid_time)$yday
+df$log_ens_sd <- log(df$ens_sd)
+```
+
+```{r explore}
+plot(t2m_obs ~ yday, df)
+```
+
+```{r model}
+library("bamlss")
+b <- bamlss(list(t2m_obs ~ s(yday, bs = "cc", by = ens_mean), ~ s(yday, bs = "cc", by = log_ens_sd)), data = df)
+```
+
+```{r plot-effects}
+par(mfrow = c(1, 2))
+plot(b)
+```
+
+```{r plot-diagnostics}
+par(mfrow = c(1, 2))
+plot(b, which = c("hist-resid", "qq-resid"))
+```
