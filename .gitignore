@@ -2,8 +2,12 @@
 .Rhistory
 .Rapp.history
 
-# Cache file
+# Cached data set
 /_data.pickle
+
+# Cached bamlss models
+/_cached_*
+
 # Final csv file
 /data.csv
 

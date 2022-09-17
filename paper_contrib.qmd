@@ -8,21 +8,38 @@ format:
     self-contained: true
 ---
 
+```{r suppress_startup_msg, include = FALSE}
+suppressPackageStartupMessages("tidyverse")
+suppressPackageStartupMessages("bamlss")
+```
+
 ```{r setup}
 library("tidyverse")
 library("bamlss")
 ```
 
 ```{r utils}
-train_models <- function(df) {
+train_models <- function(df, verbose = FALSE) {
     df$log_ens_sd <- log(df$ens_sd)
 
     f <- list(
         t2m_obs ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = ens_mean),
         ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = log_ens_sd)
     )
-    b <- bamlss(f, data = df)
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # TODO(R): For development only; cache bamlss models
+    require("digest")
+    cached_mod <- sprintf("_cached_bamlss_%s_%s.rds", digest(df), digest(f))
+    if (file.exists(cached_mod)) {
+        return(readRDS(cached_mod))
+    }
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+    b <- bamlss(f, data = df, verbose = verbose)
+
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    saveRDS(b, cached_mod)
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     return(b)
 }
 
@@ -33,47 +50,36 @@ c95 <- function (x) {
 }
 
 predict_effects <- function(b, file_name) {
-    nd <- data.frame(yday = 0:366, ens_mean = 1, log_ens_sd = 1)
-
-    fit_beta0 <- predict(b, nd, term = "s(yday)", intercept = FALSE, type = "link", FUN = c95, model = "mu") %>%
-        as_tibble() %>%
-        mutate(yday = nd$yday) %>%
-        pivot_longer(-yday, names_to = "q") %>%
-        mutate(param = "mu", coef = "varying_intercept")
-
-    fit_beta1 <- predict(b, nd, term = "s(yday,by=ens_mean)", intercept = FALSE, type = "link", FUN = c95, model = "mu") %>%
-        as_tibble() %>%
-        mutate(yday = nd$yday) %>%
-        pivot_longer(-yday, names_to = "q") %>%
-        mutate(param = "mu", coef = "varying_coef")
-
-    fit_gamma0 <- predict(b, nd, term = "s(yday)", intercept = FALSE, type = "link", FUN = c95, model = "sigma") %>%
-        as_tibble() %>%
-        mutate(yday = nd$yday) %>%
-        pivot_longer(-yday, names_to = "q") %>%
-        mutate(param = "sigma", coef = "varying_intercept")
-
-    fit_gamma1 <- predict(b, nd, term = "s(yday,by=log_ens_sd)", intercept = FALSE, type = "link", FUN = c95, model = "sigma") %>%
-        as_tibble() %>%
-        mutate(yday = nd$yday) %>%
-        pivot_longer(-yday, names_to = "q") %>%
-        mutate(param = "sigma", coef = "varying_coef")
-
-    rval <- bind_rows(fit_beta0, fit_beta1, fit_gamma0, fit_gamma1) %>%
-        mutate(station = str_sub(file_name, 9, 12), step = str_sub(file_name, 14, 16))
-
-    return(rval)
+    # Extracting station ID and forecast step (in hours) form csv file name
+    station <- regmatches(file_name, regexpr("(?<=[_])[0-9]+(?=_)", file_name, perl = TRUE)) # char!
+    step    <- as.integer(regmatches(file_name, regexpr("(?<=_)[0-9]+(?=\\.csv$)", file_name, perl = TRUE)))
+    
+    # Setting up 'grid' (df) with effects to be computed
+    args <- data.frame(term  = c("s(yday)", "s(yday,by=ens_mean)", "s(yday)", "s(yday,by=log_ens_sd)"),
+                       param = rep(c("mu", "sigma"), each = 2),
+                       coef  = paste("varying", rep(c("intercept", "coef"), times = 2), sep = "_"))
+            
+    # Compute effects
+    res <- list()
+    nd  <- data.frame(yday = 0:366, ens_mean = 1, log_ens_sd = 1)
+    for (i in seq_len(NROW(args))) {
+        res[[i]] <- predict(b, nd, term = args$term[i], intercept = FALSE, type = "link", FUN = c95, model = args$param[i]) %>%
+                    as_tibble() %>%
+                    mutate(yday = nd$yday) %>%
+                    pivot_longer(-yday, names_to = "prob") %>%
+                    mutate(param = args$param[i], coef = args$coef[i], step = step, station = station)
+    }
+    return(bind_rows(res))
 }
 ```
 
 ```{r read-data}
 files <- list.files(pattern = "euppens.*csv")
-data <- map(files, read_csv)
-names(data) <- files
+data  <- setNames(map(files, read_csv), files)
 ```
 
 ```{r model}
-models <- map(data, train_models)
+models <- setNames(map(data, train_models), files)
 ```
 
 ```{r predict}
@@ -83,9 +89,34 @@ effects <- map2_dfr(models, files, predict_effects)
 ```{r plot}
 d_plt <- effects %>%
     filter(coef == "varying_coef") %>%
-    select(-coef)
+    select(-coef) %>%
+    mutate(lty = ifelse(prob == "mid", "1", "4"))
 
-ggplot(d_plt) +
-    geom_line(aes(x = yday, y = value, linetype = q, group = interaction(station, q), col = station)) +                         
-    facet_wrap(c("step", "param"))  
+gm <- ggplot(subset(d_plt, param == "mu")) +
+      geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
+      facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
+gs <- ggplot(subset(d_plt, param == "sigma")) +
+      geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
+      facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
+
+library("lemon")
+grid_arrange_shared_legend(gm, gs, ncol = 2, position = "right")
 ```
+
+```{r plot2}
+d_plt_ic <- effects %>%
+    filter(coef == "varying_intercept") %>%
+    select(-coef) %>%
+    mutate(lty = ifelse(prob == "mid", "1", "4"))
+
+gm_ic <- ggplot(subset(d_plt_ic, param == "mu")) +
+         geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
+         facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
+gs_ic <- ggplot(subset(d_plt_ic, param == "sigma")) +
+         geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
+         facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
+
+library("lemon")
+grid_arrange_shared_legend(gm_ic, gs_ic, ncol = 2, position = "right")
+```
+
