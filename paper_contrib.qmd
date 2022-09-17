@@ -45,6 +45,7 @@ train_models <- function(df, verbose = FALSE) {
 
 c95 <- function (x) {
     qx <- quantile(x, probs = c(0.025, 0.50, 0.975), na.rm = TRUE)
+    qx <- c(qx[[1]], mean(x), qx[[3]])
     names(qx) <- c("lower", "mid", "upper")
     return(qx)
 }
@@ -98,7 +99,7 @@ gm <- ggplot(subset(d_plt, param == "mu") %>% mutate(param = "beta_1")) +
       ylab("") +
       guides(linetype = "none") +
       theme_minimal()
-      
+
 gs <- ggplot(subset(d_plt, param == "sigma") %>% mutate(param = "gamma_1")) +
       geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
       facet_grid(rows = vars(step), cols = vars(param)) +
