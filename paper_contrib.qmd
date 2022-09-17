@@ -92,12 +92,20 @@ d_plt <- effects %>%
     select(-coef) %>%
     mutate(lty = ifelse(prob == "mid", "1", "4"))
 
-gm <- ggplot(subset(d_plt, param == "mu")) +
+gm <- ggplot(subset(d_plt, param == "mu") %>% mutate(param = "beta_1")) +
       geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-      facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
-gs <- ggplot(subset(d_plt, param == "sigma")) +
+      facet_grid(rows = vars(step), cols = vars(param)) +
+      ylab("") +
+      guides(linetype = "none") +
+      theme_minimal()
+      
+gs <- ggplot(subset(d_plt, param == "sigma") %>% mutate(param = "gamma_1")) +
       geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-      facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
+      facet_grid(rows = vars(step), cols = vars(param)) +
+      ylab("") +
+      guides(linetype = "none") +
+      theme_minimal()
+
 
 library("lemon")
 grid_arrange_shared_legend(gm, gs, ncol = 2, position = "right")
@@ -109,14 +117,24 @@ d_plt_ic <- effects %>%
     select(-coef) %>%
     mutate(lty = ifelse(prob == "mid", "1", "4"))
 
-gm_ic <- ggplot(subset(d_plt_ic, param == "mu")) +
+gm_ic <- ggplot(subset(d_plt_ic, param == "mu") %>% mutate(param = "beta_0")) +
          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-         facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
-gs_ic <- ggplot(subset(d_plt_ic, param == "sigma")) +
+         facet_grid(rows = vars(step), cols = vars(param)) +
+         ylab("") +
+         guides(linetype = "none") +
+         theme_minimal()
+
+gs_ic <- ggplot(subset(d_plt_ic, param == "sigma") %>% mutate(param = "gamma_0")) +
          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-         facet_wrap(c("step", "param"), ncol = 1) + guides(linetype = "none")
+         facet_grid(rows = vars(step), cols = vars(param)) +
+         ylab("") +
+         guides(linetype = "none") +
+         theme_minimal()
 
 library("lemon")
 grid_arrange_shared_legend(gm_ic, gs_ic, ncol = 2, position = "right")
 ```
 
+```{r combine-plots}
+grid_arrange_shared_legend(gm_ic, gm, gs_ic, gs, ncol = 4, position = "bottom")
+```
