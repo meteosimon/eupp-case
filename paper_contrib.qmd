@@ -16,6 +16,7 @@ suppressPackageStartupMessages("bamlss")
 ```{r setup}
 library("tidyverse")
 library("bamlss")
+set.seed(6020) # seed for reproducibility
 ```
 
 ```{r utils}
@@ -26,20 +27,16 @@ train_models <- function(df, verbose = FALSE) {
         t2m_obs ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = ens_mean),
         ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = log_ens_sd)
     )
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # TODO(R): For development only; cache bamlss models
+    # Caching estimated models for development purposes
     require("digest")
     cached_mod <- sprintf("_cached_bamlss_%s_%s.rds", digest(df), digest(f))
     if (file.exists(cached_mod)) {
         return(readRDS(cached_mod))
     }
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    b <- bamlss(f, data = df, verbose = verbose)
+    b <- bamlss(f, data = df, verbose = verbose, n.iter = 12000, burnin = 2000, thin = 10)
 
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     saveRDS(b, cached_mod)
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     return(b)
 }
 
