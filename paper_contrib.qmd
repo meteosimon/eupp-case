@@ -1,5 +1,6 @@
 ---
-title: "EUPP Case"
+title: "Proof of Concept"
+bibliography: references.bib
 format:
   html:
     toc: true
@@ -8,10 +9,107 @@ format:
     self-contained: true
 ---
 
+
 ```{r suppress_startup_msg, include = FALSE}
-suppressPackageStartupMessages("tidyverse")
-suppressPackageStartupMessages("bamlss")
+# Invisible code chunk to suppress package startup messages later on
+suppressPackageStartupMessages(library("tidyverse"))
+suppressPackageStartupMessages(library("bamlss"))
+suppressPackageStartupMessages(library("digest"))
+suppressPackageStartupMessages(library("lemon"))
+# Disable readr from showing output when calling read_csv
+options(readr.show_progress = FALSE)
+options(readr.show_col_types = FALSE)
 ```
+
+
+This section/article shows a 'proof of concept' on how to use the
+post-processing benchmark data set for post-processing near surface temperature.
+While many different post-processing methods have been proposed in
+the literature over the past decades, this section makes use of one of the
+models proposed by @lang2020, a station-based non-homogeneous Gaussian model
+with smoothly varying seasonal effects.
+
+
+
+
+
+#### Data
+
+@tbl-station shows the three stations used which are chosen to cover different
+climatic zones with Emden on the coast of the North Sea, Wasserkuppe in
+moderately complex topography in the center of the country, and Oberstdorf
+located in a complex topographic environment in the Allgäu Alps at the southern
+boarder of Germany.
+
+```{r stations, echo = FALSE}
+#| label: tbl-stations
+#| tbl-cap: "Stations used in the case study."
+knitr::kable(transform(read_csv("eupp_station_meta.csv"),
+             altitude = as.integer(round(altitude)), land_usage = NULL))
+```
+
+```{r}
+#| echo: false
+#| fig: true
+suppressPackageStartupMessages(library("sf"))
+suppressPackageStartupMessages(library("rnaturalearth"))
+
+DEU <- ne_countries(scale = "medium", returnclass = "sf")
+DEU <- st_geometry(subset(DEU, adm0_a3_is == "DEU"))
+meta <- st_as_sf(read_csv("eupp_station_meta.csv"),
+                 coords = c("longitude", "latitude"), crs = st_crs(DEU))
+
+ggplot() + geom_sf(data = DEU) +
+    geom_sf(aes(col = station_name), data = meta, cex = 4) +
+    ggtitle("Just for Reto, can be removed later")
+```
+
+The data set to train the statistical post-processing models consists of
+observed near surface temperature ($t_{2m}$) at each of these sites as well
+as bi-linearely interpolated forecasts of the near-surface temperature ($ens$)
+from the ECMWF ensemble with $50+1$ ensemble members ($0000$ UTC run) covering
+the two years 2017 and 2018.
+
+For simplicity, the data set is further restricted to two forecast steps:
+$+108h$ and $+120h$ which correspond to  $+4$ days and $12$ hours ($1200$ UTC; noon) and 
+$+5$ days ($0000$ UTC; midnight).
+
+For each station, forecast step and date, the ensemble mean
+($\overline{\mathrm{ens}}$) as well as the ensemble log-standard deviation
+($log(\mathrm{sd}(ens))$) are calculated.
+
+
+A Python script for downloading
+and preparing the data set as described can be
+`r xfun::embed_file("etl.py", name = "etl.py", text = "downloaded here")`.
+
+
+
+
+
+
+### Methodology
+
+$$
+t_{2m} \sim \mathcal{N}(\mu, \sigma),
+$$
+
+with
+
+$$
+\mu = \beta_0(\mathrm{yday}) + \beta_1(\mathrm{yday}) \cdot \overline{\mathrm{ens}}
+$$
+
+$$
+log(\sigma) = \gamma_0(\mathrm{yday}) + \gamma_1(\mathrm{yday}) \cdot log(\mathrm{sd}(\mathrm{ens}))
+$$
+
+
+
+
+
+
+### Estimates and Results
 
 ```{r setup}
 library("tidyverse")
@@ -20,6 +118,7 @@ set.seed(6020) # seed for reproducibility
 ```
 
 ```{r utils}
+#| code-fold: true
 train_models <- function(df, verbose = FALSE) {
     df$log_ens_sd <- log(df$ens_sd)
 
@@ -72,19 +171,24 @@ predict_effects <- function(b, file_name) {
 ```
 
 ```{r read-data}
+# Finding and reading available datasets
 files <- list.files(pattern = "euppens.*csv")
 data  <- setNames(map(files, read_csv), files)
 ```
 
 ```{r model}
+# Training post-processing models
 models <- setNames(map(data, train_models), files)
 ```
 
+
 ```{r predict}
+# Calculating estimated effects
 effects <- map2_dfr(models, files, predict_effects)
 ```
 
 ```{r plot}
+#| code-fold: true
 d_plt <- effects %>%
     filter(coef == "varying_coef") %>%
     select(-coef) %>%
@@ -110,6 +214,7 @@ grid_arrange_shared_legend(gm, gs, ncol = 2, position = "right")
 ```
 
 ```{r plot2}
+#| code-fold: true
 d_plt_ic <- effects %>%
     filter(coef == "varying_intercept") %>%
     select(-coef) %>%
@@ -136,3 +241,5 @@ grid_arrange_shared_legend(gm_ic, gs_ic, ncol = 2, position = "right")
 ```{r combine-plots}
 grid_arrange_shared_legend(gm_ic, gm, gs_ic, gs, ncol = 4, position = "bottom")
 ```
+
+
