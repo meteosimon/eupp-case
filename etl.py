@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
     # Fetching station meta
     station_meta = []
-    station_meta_csv = "euppens_station_meta.csv"
+    station_meta_csv = "eupp_station_meta.csv"
 
     cachefile = "_data.pickle" # Used to cache the data request
 
