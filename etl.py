@@ -95,6 +95,31 @@ def get_csv_filename(station_id, step, prefix = "euppens"):
     return f"{prefix}_{station_id}_{step_to_hours(step):03d}.csv"
 
 # -------------------------------------------------------------------
+def get_station_meta(x):
+    """get_station_meta(x)
+
+    Extract station meta information from dataset coordinates.
+
+    Params
+    ------
+    x : xarray.core.coordinates.DatasetCoordinates
+        Object from which the meta information will be extracted.
+
+    Return
+    ------
+    dict : Returns a dictionary with station_name (str),
+    station_id (int), land_usage (int), as well as altitude, longitude
+    and latitude (all float).
+    """
+    from xarray.core.coordinates import DatasetCoordinates
+    assert isinstance(x, DatasetCoordinates), TypeError("argument 'x' must be of type xarray.core.coordinates.DatasetCoordinates")
+
+    tmp = {"station_name": str(x["station_name"].data)}
+    for k in ["station_id", "land_usage"]:          tmp[k] = int(x[k].data)
+    for k in ["altitude", "longitude", "latitude"]: tmp[k] = float(x[k].data)
+    return tmp
+
+# -------------------------------------------------------------------
 # Main part of the Script
 # -------------------------------------------------------------------
 if __name__ == "__main__":
@@ -102,6 +127,10 @@ if __name__ == "__main__":
     # Stations and forecast steps (lead times) to process
     stations = {"Wasserkuppe": 5371, "Emden": 5839, "Oberstdorf": 3730}
     steps    = ["4 days 12:00:00", "5 days 00:00:00"]
+
+    # Fetching station meta
+    station_meta = []
+    station_meta_csv = "euppens_station_meta.csv"
 
     cachefile = "_data.pickle" # Used to cache the data request
 
@@ -117,11 +146,14 @@ if __name__ == "__main__":
             log.info(f"Processing data for station {station_name} (id {station_id}), {step} ahead.")
             csvfile = get_csv_filename(station_id, step)
             subset = {"station_id": station_id, "step": step}
-            if os.path.isfile(csvfile): continue # Skip if output file exists
 
             # -----------------------------------
             # Prepare observation data
             obs_subset = obs[['t2m']].loc[subset]
+            # Fetching meta information
+            station_meta.append(get_station_meta(obs_subset.coords))
+            # Skip the rest if the data output file exists already
+            if os.path.isfile(csvfile): continue # Skip if output file exists
             df_obs = obs_subset.rename({'t2m': 't2m_obs'}).to_dataframe()[["t2m_obs"]]
 
             # -----------------------------------
@@ -154,5 +186,7 @@ if __name__ == "__main__":
             del subset, csvfile, data, df_fcs, df_obs
 
 
-    log.info("That's the end my friend.")
+    log.info("Write station meta file")
+    pd.DataFrame(station_meta).to_csv(station_meta_csv, index = False)
+    log.info("\nThat's the end my friend.")
 
