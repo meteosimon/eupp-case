@@ -129,8 +129,8 @@ if __name__ == "__main__":
     steps    = ["4 days 12:00:00", "5 days 00:00:00"]
 
     # Fetching station meta
-    station_meta = []
     station_meta_csv = "eupp_station_meta.csv"
+    station_meta = {}
 
     cachefile = "_data.pickle" # Used to cache the data request
 
@@ -151,7 +151,7 @@ if __name__ == "__main__":
             # Prepare observation data
             obs_subset = obs[['t2m']].loc[subset]
             # Fetching meta information
-            station_meta.append(get_station_meta(obs_subset.coords))
+            station_meta[station_name] = get_station_meta(obs_subset.coords)
             # Skip the rest if the data output file exists already
             if os.path.isfile(csvfile): continue # Skip if output file exists
             df_obs = obs_subset.rename({'t2m': 't2m_obs'}).to_dataframe()[["t2m_obs"]]
@@ -187,6 +187,7 @@ if __name__ == "__main__":
 
 
     log.info("Write station meta file")
-    pd.DataFrame(station_meta).to_csv(station_meta_csv, index = False)
+    print(pd.DataFrame(station_meta))
+    pd.DataFrame(station_meta).transpose().to_csv(station_meta_csv, index = False)
     log.info("\nThat's the end my friend.")
 
