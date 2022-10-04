@@ -1,15 +1,20 @@
 # History files
 .Rhistory
 .Rapp.history
+*.swp
+
+__pycache__
 
 # Cached data set
 /_data.pickle
 
 # Cached bamlss models
 /_cached_*
+/_cache
 
 # Final csv file
 /data.csv
+/euppens
 
 # Session Data files
 .RData

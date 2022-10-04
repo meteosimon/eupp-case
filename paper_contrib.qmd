@@ -35,7 +35,7 @@ with smoothly varying seasonal effects.
 
 #### Data
 
-@tbl-station shows the three stations used which are chosen to cover different
+@tbl-stations shows the three stations used which are chosen to cover different
 climatic zones with Emden on the coast of the North Sea, Wasserkuppe in
 moderately complex topography in the center of the country, and Oberstdorf
 located in a complex topographic environment in the Allgäu Alps at the southern
@@ -71,13 +71,16 @@ from the ECMWF ensemble with $50+1$ ensemble members ($0000$ UTC run) covering
 the two years 2017 and 2018.
 
 For simplicity, the data set is further restricted to two forecast steps:
-$+108h$ and $+120h$ which correspond to  $+4$ days and $12$ hours ($1200$ UTC; noon) and 
-$+5$ days ($0000$ UTC; midnight).
+$+108h$ and $+120h$ which correspond to  $+4$ days and $12$ hours ($1200$ UTC) and
+$+5$ days ($0000$ UTC) to highlight possible differences in the statistical
+characteristic for different times of the day (noon/midnight).
 
 For each station, forecast step and date, the ensemble mean
 ($\overline{\mathrm{ens}}$) as well as the ensemble log-standard deviation
-($log(\mathrm{sd}(ens))$) are calculated.
-
+($log(\mathrm{sd}(ens))$) are calculated which serve as the independent
+variables (covariates) in the statistical model. In addition, the day of 
+the year ($\mathrm{yday}$; Julian day $- 1$) is added as an additional
+variable used to train the models.
 
 A Python script for downloading
 and preparing the data set as described can be
@@ -90,11 +93,45 @@ and preparing the data set as described can be
 
 ### Methodology
 
+As described by @lang2020 in detail, the response (observed near-surface temperature; $t_{2m}$)
+is assumed to follow a Gaussian distribution $\mathcal{N}$ which is defined by the
+two parameters $\mu$ (location) and $\sigma$ (scale).
+
 $$
-t_{2m} \sim \mathcal{N}(\mu, \sigma),
+t_{2m} \sim \mathcal{N}(\mu, \sigma)
 $$
 
-with
+Both parameters can be expressed by an additive predictor $\eta_\bullet$. In the classical
+non-homogeneous Gaussian regression the following specification is used frequently:
+
+$$
+\mu = \eta_\mu = \beta_0 + \beta_1 \overline{\mathmf{ens}} and
+$$
+
+$$
+log(\sigma) = \eta_\sigma = \gamma_0 + \gamma_1 log(\mathmf{sd}(\mathmf{ens}))
+$$
+
+
+where 
+
+RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
+RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
+RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
+RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
+RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
+RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
+
+While the location parameter drives the expectation, the scale defines the
+width of the distribution. Bo
+
+
+
+
+Both parameters are expressed by a linear predictor
+including a seasonal varying intercept ($\beta_0$, $\gamma_0$) and seasonal varying
+slope coefficient ($\beta_1$, $\gamma_1$), all of which are smooth cyclic P-splines
+and allow to adjust for different statistical characteristics over the course of the year.
 
 $$
 \mu = \beta_0(\mathrm{yday}) + \beta_1(\mathrm{yday}) \cdot \overline{\mathrm{ens}}

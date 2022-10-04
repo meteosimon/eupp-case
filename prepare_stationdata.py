@@ -13,175 +13,59 @@
 
 import sys
 import os
+import re
+import glob
 import pickle
 import fsspec
+import argparse
+from zipfile import ZipFile
 
-from argparse import ArgumentParser
 import xarray as xr
 import pandas as pd
 import numpy as np
-import logging as log
 
+from functions import *
+
+import logging as log
 log.basicConfig(level = log.INFO)
 
-# -------------------------------------------------------------------
-def get_data(country, param, cachedir = "_cache", do_cache = True):
-    """get_data(cachefile)
 
-    ... [tbd]
-    """
-    assert isinstance(country, str), TypeError("argument 'country' must be string")
-    assert isinstance(param, str), TypeError("argument 'param' must be string")
-
-    # If we have caching on, make sure the output dir exists and generate output name
-    cachefile = os.path.join(cachedir, f"_cached_{country.lower()}_{param}.pickle")
-    if do_cache:
-        if not os.path.isdir(cachedir):
-            print(f"Creating cache directory '{cachedir}'")
-            try:
-                os.makedirs(cachedir)
-            except Exception as e:
-                raise Exception(e)
-        print(f"Cachefile: {cachefile}")
-
-    # Prepare data if needed
-    if not do_cache or not os.path.isfile(cachefile):
-        log.info(f"{cachefile} not existing: Downloading data")
-        target_fcs = fsspec.get_mapper(f"https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_ensemble_forecasts_surface_{country.lower()}.zarr")
-        fcs = xr.open_zarr(target_fcs)[[param]]
-        fcs_vars = fcs.var().variables
-
-        log.info("Load and subset Obs")
-        target_obs = fsspec.get_mapper(f"https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_forecasts_observations_surface_{country.lower()}.zarr")
-        obs = xr.open_zarr(target_obs)[[param]]
-        obs_vars = obs.var().variables
-
-        if not param in fcs_vars: raise ValueError(f"cannot find '{param}' in fcs")
-        if not param in obs_vars: raise ValueError(f"cannot find '{param}' in obs")
-        obs = obs[[param]]
-        fcs = fcs[[param]]
-
-        if do_cache:
-            with open(cachefile, "wb") as fid:
-                log.info(f"Saving data into {cachefile}")
-                pickle.dump([fcs, obs], fid)
-
-    # Read prepared data from pickle file
-    if do_cache:
-        with open(cachefile, "rb") as fid:
-            log.info(f"Reading data from {cachefile}")
-            [fcs, obs] = pickle.load(fid)
-
-    return [fcs, obs]
-
-
-# -------------------------------------------------------------------
-def get_csv_filename(param, station_id, step, prefix = "euppens", csvdir = "csvdata"):
-    """get_csv_filename(param, station_id, step, prefix = "euppens", csvdir = "csvdata")
+def main(args):
+    """main(args)
 
     Params
     ------
-    param : str
-        Parameter processed.
-    station_id : int
-        Station identifier.
-    step : int
-        Forecast horizon in hours, integer.
-    prefix : str
-        Prefix for the file name, defaults to 'euppens'.
-    csvdir : str
-        Directory where the csvs should be stored.
+    args : argparse.Namespace or dict
+        Parsed argument, object as returned by parse_args().
+        Must contain 'country' (str), 'param' (str), and 'nocache' (bool).
+        If it is a dictionary, it will be converted into argparse.Namespace internally.
 
     Return
     ------
-    str : Name of the CSV file to store the final data set.
+    No return, but saves a bunch of files into CSVDIR in the best case.
     """
-
-    if not os.path.isdir(csvdir):
-        try: os.makedirs(csvdir)
-        except Exception as e: raise Exception(e)
-
-    assert isinstance(param, str),      TypeError("argument 'param' must be str")
-    assert isinstance(station_id, int), TypeError("argument 'station_id' must be int")
-    assert isinstance(step, int),       TypeError("argument 'step' must be int")
-    assert isinstance(prefix, str),     TypeError("argument 'prefix' must be str")
-    assert isinstance(csvdir, str),     TypeError("argument 'csvdir' must be str")
-    return os.path.join(csvdir, f"{prefix}_{param}_{station_id}_{step:03d}.csv")
-
-def get_station_meta(fcs, obs):
-    """get_station_meta(fcs, obs)
-
-    Params
-    ------
-    fcs : xarray.core.dataset.Dataset
-        Object which contains the station-based forecasts (all stations, ...).
-    obs : xarray.core.dataset.Dataset
-        Object which contains the station-based observations (all stations, ...).
-
-    Return
-    ------
-    pandas.core.frame.DataFrame : Pandas DataFrame with station information.
-    """
-
-    from xarray.core.dataset import Dataset
-    assert isinstance(fcs, Dataset), TypeError("argument 'fcs' must be an xarray Dataset")
-    assert isinstance(obs, Dataset), TypeError("argument 'obs' must be an xarray Dataset")
-
-    # Check if required fields are available. These lists will also later be used to 
-    # extract and later return station meta data fields.
-    fcs_req = ["model_altitude", "model_land_usage", "model_longitude", "station_id"]
-    for k in fcs_req:
-        if not k in fcs.coords: raise Exception(f"coord '{k}' missing in fcs")
-    obs_req = ["altitude", "land_usage", "latitude", "longitude", "station_id", "station_name"]
-    for k in obs_req:
-        if not k in obs.coords: raise Exception(f"coord '{k}' missing in obs")
-
-    # Check that we have the same stations in both datasets
-    obs_stnid = obs.coords.get("station_id").values
-    fcs_stnid = fcs.coords.get("station_id").values
-    if not all(obs_stnid == fcs_stnid):
-        raise Exception("station_id not identical in both fcs and obs")
-
-    # Fetching information
-    res = []
-    for i in range(obs.dims["station_id"]):
-        tmp = {}
-        for k in fcs_req: tmp[k] = fcs.get(k).values[i]
-        for k in obs_req: tmp[k] = obs.get(k).values[i]
-        res.append(tmp)
-
-    return pd.DataFrame.from_dict(res)
-
-# -------------------------------------------------------------------
-# Main part of the Script
-# -------------------------------------------------------------------
-if __name__ == "__main__":
-
-    # Some settings
-    CSVDIR = "csvdata"
+    if isinstance(args, dict): args = argparse.Namespace(**args)
+    assert isinstance(args, argparse.Namespace), TypeError("argument 'args' must be argparse.Namespace")
+    for k in ["country", "param", "nocache", "prefix"]:
+        if not k in args: ValueError(f"option '{k}' not in object 'args'")
+    assert isinstance(args.prefix, str),   TypeError("args.country must be str")
+    assert isinstance(args.country, str),  TypeError("args.country must be str")
+    assert isinstance(args.param, str),    TypeError("args.param must be str")
+    assert isinstance(args.nocache, bool), TypeError("args.nocache must be bool")
 
     # ---------------------------------------------------------------
-    # Parsing console arguments
+    # Prevent the script from running again if the final zip file exists
     # ---------------------------------------------------------------
-    parser = ArgumentParser(f"{sys.argv[0]}")
-    parser.add_argument("-c", "--country",
-            choices = ["germany", "france", "netherlands", "switzerland", "austria"],
-            type = str.lower, default = "germany",
-            help = "Name of the country to be processed.")
-    parser.add_argument("-p", "--param", type = str.lower, default = "t2m",
-            help = "Name of the parameter to be processed.")
-    parser.add_argument("-n", "--nocache", action = "store_true", default = False,
-            help = "Disables auto-caching zarr file content (stored as pickle files). Defaults to 'False' (will do caching). Also forces all files to be recreated.")
-    args = parser.parse_args()
-    if not args.country:
-        parser.print_help()
-        raise ValueError("argument -c/--country not set (has no default)")
+    final_zip = os.path.join(args.prefix, f"{args.prefix}_{args.param}_{args.country}.zip")
+    if os.path.isfile(final_zip):
+        print(f"Final file {final_zip} exists; do not continue (return None)")
+        return None
 
     # ---------------------------------------------------------------
     # Make sure CSVDIR exists
     # ---------------------------------------------------------------
-    if not os.path.isdir(CSVDIR):
-        try: os.makedirs(CSVDIR)
+    if not os.path.isdir(args.prefix):
+        try: os.makedirs(args.prefix)
         except Exception as e: raise Exception(e)
 
     # Loading data (uses cache file if existing)
@@ -190,7 +74,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------
     # Fetching station meta if needed
     # ---------------------------------------------------------------
-    station_meta_csv = os.path.join(CSVDIR, f"eupp_stationmeta_{args.country}.csv")
+    station_meta_csv = os.path.join(args.prefix, f"{args.prefix}_{args.param}_{args.country}_stationdata.csv")
     if args.nocache or not os.path.isfile(station_meta_csv):
         log.info("Extracting station meta data")
         station_meta = get_station_meta(fcs, obs)
@@ -217,7 +101,9 @@ if __name__ == "__main__":
 
             # -----------------------------------
             # Define output file name and subset args
-            csvfile = get_csv_filename(args.param, station_id, step_hours, csvdir = CSVDIR)
+            csvfile = get_csv_filename(args, station_id, step_hours)
+
+            # Subsetting station/step for data processing
             subset = {"station_id": station_id, "step": step}
 
             # -----------------------------------
@@ -262,6 +148,60 @@ if __name__ == "__main__":
 
             del tmp_mean, tmp_std, yday, csvfile
             del subset, data, df_fcs, df_obs
+
+
+    # ---------------------------------------------------------------
+    # All stations processes
+    # ---------------------------------------------------------------
+    log.info(f"All stations processed for {args.country}, {args.param}, create zip file")
+
+    # Find files to be zipped
+    keepwd = os.getcwd()
+    os.chdir(os.path.dirname(final_zip))
+    pattern = re.compile(f"{args.prefix}_{args.param}_{args.country}_.*\.csv$")
+    files = []
+    for f in glob.glob("*"):
+        if pattern.match(f): files.append(f)
+    files.sort()
+    try:
+        with ZipFile(os.path.basename(final_zip), "w") as fid:
+            for f in files:
+                fid.write(f) # Store in zip
+    except:
+        log.error("Problems with zipping do not delete files")
+        if os.path.isfile(final_zip): os.remove(final_zip)
+    finally:
+        log.info("Zip file created, delete source files")
+        for f in files: os.remove(f)
+    os.chdir(keepwd)
+
+
+# -------------------------------------------------------------------
+# Main part of the Script
+# -------------------------------------------------------------------
+if __name__ == "__main__":
+
+    # ---------------------------------------------------------------
+    # Parsing console arguments
+    # ---------------------------------------------------------------
+    parser = argparse.ArgumentParser(f"{sys.argv[0]}")
+    parser.add_argument("-c", "--country",
+            choices = ["germany", "france", "netherlands", "switzerland", "austria"],
+            type = str.lower, default = "germany",
+            help = "Name of the country to be processed.")
+    parser.add_argument("-p", "--param", type = str.lower, default = "t2m",
+            help = "Name of the parameter to be processed.")
+    parser.add_argument("--prefix", type = str, default = "euppens",
+            help = "Used as name of the output directory for the results as well as prefix for all files created by this script.")
+    parser.add_argument("-n", "--nocache", action = "store_true", default = False,
+            help = "Disables auto-caching zarr file content (stored as pickle files). Defaults to 'False' (will do caching). Also forces all files to be recreated.")
+    args = parser.parse_args()
+    if not args.country:
+        parser.print_help()
+        raise ValueError("argument -c/--country not set (has no default)")
+
+    # Start downloading
+    main(args)
 
 
 

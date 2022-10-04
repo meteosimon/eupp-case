@@ -5,41 +5,35 @@
 # -------------------------------------------------------------------
 
 import os
+import argparse
 import logging as log
 log.basicConfig(level = log.INFO)
 
 # -------------------------------------------------------------------
-def get_csv_filename(param, station_id, step, prefix = "euppens", csvdir = "csvdata"):
-    """get_csv_filename(param, station_id, step, prefix = "euppens", csvdir = "csvdata")
+def get_csv_filename(args, station_id, step):
+    """get_csv_filename(args, station_id, step)
 
     Params
     ------
-    param : str
-        Parameter processed.
+    args : argparse.Namespace
+        Object as returned by the argparser of the main script.
     station_id : int
         Station identifier.
     step : int
         Forecast horizon in hours, integer.
-    prefix : str
-        Prefix for the file name, defaults to 'euppens'.
-    csvdir : str
-        Directory where the csvs should be stored.
 
     Return
     ------
     str : Name of the CSV file to store the final data set.
     """
 
-    import os
 
-    if not os.path.isdir(csvdir):
-        try: os.makedirs(csvdir)
+    if not os.path.isdir(args.prefix):
+        try: os.makedirs(args.prefix)
         except Exception as e: raise Exception(e)
 
-    assert isinstance(param, str),      TypeError("argument 'param' must be str")
+    assert isinstance(args, argparse.Namespace), TypeError("argument 'args' must be argparse.Namespace")
     assert isinstance(station_id, int), TypeError("argument 'station_id' must be int")
     assert isinstance(step, int),       TypeError("argument 'step' must be int")
-    assert isinstance(prefix, str),     TypeError("argument 'prefix' must be str")
-    assert isinstance(csvdir, str),     TypeError("argument 'csvdir' must be str")
-    return os.path.join(csvdir, f"{prefix}_{param}_{station_id}_{step:03d}.csv")
+    return os.path.join(args.prefix, f"{args.prefix}_{args.param}_{args.country}_{station_id}_{step:03d}.csv")
 

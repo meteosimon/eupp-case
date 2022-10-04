@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     # Start downloading
     for c in ["germany", "france", "netherlands", "switzerland", "austria"]:
-        main(CSVDIR, {"country": c.lower(), "param": "t2m", "nocache": False})
+        main({"prefix": "euppens", "country": c.lower(), "param": "t2m", "nocache": False})
 
     print("\n .... everything done.")
 
