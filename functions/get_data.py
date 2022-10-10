@@ -56,8 +56,8 @@ def get_data(country, param, cachedir = "_cache", do_cache = True):
         fcs_vars = fcs.var().variables
 
         # Reading observations
-        log.info(f"Reading: {target_file}")
         target_file = f"{server_path}/stations_forecasts_observations_surface_{country.lower()}.zarr"
+        log.info(f"Reading: {target_file}")
         target_obs = fsspec.get_mapper(target_file)
         del target_file
         obs = xr.open_zarr(target_obs, consolidated = True)[[param]]
