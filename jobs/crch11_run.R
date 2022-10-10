@@ -35,7 +35,7 @@ step <- ifelse(nchar(step) == 0, 0, as.integer(step))
 # ---------------------------------------------------------
 dir     <- file.path("..", "euppens")
 csvfile <- file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%03d.csv", args$country, args$station, step))
-rdsfile <- file.path("..", "euppens_rds", sprintf("euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
+rdsfile <- file.path("..", "euppens_rds", sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
 if (!dir.exists("../euppens_rds")) dir.create("../euppens_rds")
 
 # If the csvfile does not exist - ignore
@@ -48,6 +48,7 @@ if (!file.exists(csvfile)) {
 } else {
     df <- read.csv(csvfile)
     df <- subset(df, select = c(valid_time, yday, t2m_obs, ens_mean, ens_sd))
+    df <- subset(df, !is.na(t2m_obs) & !is.na(yday) & !is.na(ens_mean) & !is.na(ens_sd))
     print(head(df, n = 3))
 
     library("crch")

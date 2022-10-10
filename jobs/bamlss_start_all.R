@@ -16,6 +16,6 @@ print(data)
 
 # Start the job (array jobs)
 for (i in seq_len(nrow(data))) {
-    system(sprintf("sbatch crch11_run.R -c %s -s %d", data$country[i], data$station[i]))
+    system(sprintf("sbatch bamlss_run.R -c %s -s %d", data$country[i], data$station[i]))
 }
 
