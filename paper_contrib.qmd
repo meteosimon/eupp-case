@@ -77,7 +77,7 @@ differences in the statistical characteristic for different times of the day
 
 For each station, forecast step, and date, the ensemble mean
 ($\overline{\mathrm{ens}}$) as well as the ensemble log-standard deviation
-($log(\mathrm{sd}(ens))$) is calculated which serve as the independent
+($\log(\mathrm{sd}(ens))$) is calculated which serve as the independent
 variables (covariates) in the statistical model. In addition, the day of 
 the year ($\mathrm{yday}$; Julian day $-1$) is added as an additional
 to model varying seasonal effects.
@@ -111,12 +111,13 @@ $$
 $$
 
 $$
-log(\sigma) = \eta_\sigma = \gamma_0 + \gamma_1 log(\text{sd}(\text{ens})),
+\log(\sigma) = \eta_\sigma = \gamma_0 + \gamma_1 \log(\text{sd}(\text{ens})),
 $$
 
 where the ensemble mean ($\overline{\text{ens}}$) drives the location, while
 the ensemble standard deviation ($\text{sd}(\text{sd})$) drives the scale of
-the distribution. Both predictors $\eta_\bullet$ allow to correct for a
+the distribution. The log-link for the scale parameter is used to ensure positivity.
+Both predictors $\eta_\bullet$ allow to correct for a
 potential forecast bias ($\beta_0$; $\gamma_0$) as well as adjusting the linear
 relation ship between the response and the 
 corresponding covariate (via $\beta_1$; $\gamma_1$).
@@ -128,28 +129,27 @@ additive predictors are extended to:
 
 $$
 \mu = \beta_0(\text{yday}) + \beta_1(\text{yday}) \cdot \overline{\text{ens}},
-$$
+$$ {#eq-mu}
 
 $$
-log(\sigma) = \gamma_0(\text{yday}) + \gamma_1(\text{yday}) \cdot log(\text{sd}(\text{ens})).
-$$
+\log(\sigma) = \gamma_0(\text{yday}) + \gamma_1(\text{yday}) \cdot \log(\text{sd}(\text{ens})).
+$$ {#eq-sigma}
 
 All regression coefficients are now smooth functions which depend on the day of the year
-($f(\text{yday}); cyclic P-splines). Conceptually, this is similar to using a rolling
+($f(\text{yday}$); cyclic P-splines). Conceptually, this is similar to using a rolling
 window training period (e.g., $\pm30$days).
+In an ideal world where the ensemble forecasts are prefect, $\beta_0$/$\gamma_0$ would be $0.0$,
+while $\beta_1$/$\gamma_1$ would be $1.0$ resulting in $\mu = \overline{\text{ens}}$ and
+$\log(\sigma) = \log(\text{sd}(\text{ens}))$.
 
 
-### Estimates and Results
 
 ```{r setup}
 #| code-fold: true
 library("tidyverse")
 library("bamlss")
 set.seed(6020) # seed for reproducibility
-```
 
-```{r utils}
-#| code-fold: true
 train_models <- function(df, verbose = FALSE) {
     df$log_ens_sd <- log(df$ens_sd)
 
@@ -199,122 +199,113 @@ predict_effects <- function(b, file_name) {
     }
     return(bind_rows(res))
 }
-```
 
-```{r read-data}
-#| code-fold: true
 # Finding and reading available datasets
 files <- list.files(pattern = "euppens.*csv")
 data  <- setNames(map(files, read_csv), files)
-```
 
-```{r model}
-#| code-fold: true
 # Training post-processing models
 models <- setNames(map(data, train_models), files)
-```
 
-
-```{r predict}
-#| code-fold: true
 # Calculating estimated effects
 effects <- map2_dfr(models, files, predict_effects)
 stations <- list(id = c("5371", "5839", "3730"), name = c("Wasserkuppe", "Emden", "Oberstdorf"))
 effects <- transform(effects, station = factor(station, stations$id, stations$name))
 ```
 
-```{r plot}
-#| eval: false
-#| code-fold: true
-d_plt <- effects %>%
-    filter(coef == "varying_coef") %>%
-    select(-coef) %>%
-    mutate(lty = ifelse(prob == "mid", "1", "4"))
-
-gm <- ggplot(subset(d_plt, param == "mu") %>% mutate(param = "beta_1")) +
-      geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-      facet_grid(rows = vars(step), cols = vars(param)) +
-      ylab("") +
-      guides(linetype = "none") +
-      theme_minimal()
-
-gs <- ggplot(subset(d_plt, param == "sigma") %>% mutate(param = "gamma_1")) +
-      geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-      facet_grid(rows = vars(step), cols = vars(param)) +
-      ylab("") +
-      guides(linetype = "none") +
-      theme_minimal()
 
 
-library("lemon")
-grid_arrange_shared_legend(gm, gs, ncol = 2, position = "right")
+
+
+
+### Estimates and Results
+
+```{r}
+#| include: false
+# Average mean effect gamma_0 and gamma_1 for Emden +108
+tmp <- subset(effects, param == "sigma" & step == 108 & station == "Emden" & prob == "mid")
+emden <- list("gamma_0" = mean(subset(tmp, coef == "varying_intercept")$value),
+              "gamma_1" = mean(subset(tmp, coef == "varying_intercept")$value))
 ```
 
-```{r plot2}
-#| eval: false
-#| code-fold: true
-d_plt_ic <- effects %>%
-    filter(coef == "varying_intercept") %>%
-    select(-coef) %>%
-    mutate(lty = ifelse(prob == "mid", "1", "4"))
+@fig-effects show the esimates of the effects from @eq-mu and @eq-sigma. While the
+columns contain the effects for the two forecast steps, the different
+effects are shown in the rows. Exemplarily, two sets of contrasting effects will be
+described briefly.
 
-gm_ic <- ggplot(subset(d_plt_ic, param == "mu") %>% mutate(param = "beta_0")) +
-         geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-         facet_grid(rows = vars(step), cols = vars(param)) +
-         ylab("") +
-         guides(linetype = "none") +
-         theme_minimal()
+For station Emden, $+108h$ ahead (green; left column) both effects for the location
+parameter $mu$ ($\beta_0$, $\beta_1$) are close to $0.0$ and $1.0$, respectively.
+This indicates that the ensemble is able to accurately predict the expected temperature
+via the mean of the ensemble. The effects for the log-scale ($\log(\sigma)$; $\gamma_0$, $\gamma_1$)
+also show no distinct seasonal pattern with an average mean effect of
+$\bar{\gamma}_0 = `r round(emden$gamma_0, 3)`$ and
+$\bar{\gamma}_1 = `r round(emden$gamma_0, 3)`$ which indicates that the ensemble is overall
+able to provide valuable uncertainty information but is slightly overdispersive which is not
+surprising as the ensemble provides an average uncertainty over a larger grid box.
 
-gs_ic <- ggplot(subset(d_plt_ic, param == "sigma") %>% mutate(param = "gamma_0")) +
-         geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +                         
-         facet_grid(rows = vars(step), cols = vars(param)) +
-         ylab("") +
-         guides(linetype = "none") +
-         theme_minimal()
+In contrast, the effects for station Wasserkuppe $+120h$ (red; right column)
+shows a completely different picture. $\beta_0$ shows a strong seasonal pattern
+with positive values during the cold season where the ensemble on average
+underpredict temperatures (forecasts too cold) and negative values during summer where
+the ensemble tends to overpredict temperatures (forecasts too warm). A similar but inverted
+picture is shown for $\beta_1$ which shows a minimum in winter and a maximum over summer.
+A similar pattern can be found for $\gamma_0$ and $\gamma_1$, where a high $\gamma_0$ in
+combination with a small $\gamma_1$ means that the statistical model relies less on the
+actual ensemble uncertainty (cold season), whereas duruing summer the ensemble provides
+more reliable uncertainty information.
 
-library("lemon")
-grid_arrange_shared_legend(gm_ic, gs_ic, ncol = 2, position = "right")
-```
-
-```{r combine-plots}
-#| eval: false
-grid_arrange_shared_legend(gm_ic, gm, gs_ic, gs, ncol = 4, position = "bottom")
-```
-
-### 
 
 ```{r plot_vertical_all}
+#| label: fig-effects
+#| fig-cap: Estimated seasonal varying effects $\beta_0()$, $\beta_1()$, $\gamma_0()$, and
+#|          $\gamma_1()$ (top down) for the two forecast steps $+108h$ (noon) and $+120h$ (midnight).
+#|          The lines show the mean effect (solid) as well as the 95% confidence interval (dashed) of
+#|          all three stations.
 #| fig.width: 5
 #| fig.height: 7
 #| code-fold: true
 d2_plt <- effects %>% mutate(lty = ifelse(prob == "mid", "1", "4"), step = paste("+", step, "h", sep = ""))
 
-gm2_ic <- ggplot(subset(d2_plt, param == "mu" & coef == "varying_intercept")) +
-          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
-          labs(y = expression(beta[0]), x = NULL) +
-          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
-          guides(linetype = "none") +
-          theme_minimal()
-gm2_vc <- ggplot(subset(d2_plt, param == "mu" & coef == "varying_coef")) +
-          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
-          labs(y = expression(beta[1]), x = NULL) +
-          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
-          guides(linetype = "none") +
-          theme_minimal()
-gs2_ic <- ggplot(subset(d2_plt, param == "sigma" & coef == "varying_intercept")) +
-          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
-          labs(y = expression(gamma[0]), x = NULL) +
-          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
-          guides(linetype = "none") +
-          theme_minimal()
-gs2_vc <- ggplot(subset(d2_plt, param == "sigma" & coef == "varying_coef")) +
-          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
-          labs(y = expression(gamma[1])) +
-          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
-          guides(linetype = "none") +
-          theme_minimal()
+beta_0  <- ggplot(subset(d2_plt, param == "mu" & coef == "varying_intercept")) +
+           geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+           labs(y = expression(beta[0]), x = NULL) +
+           facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+           guides(linetype = "none") +
+           theme_minimal()
+beta_1  <- ggplot(subset(d2_plt, param == "mu" & coef == "varying_coef")) +
+           geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+           labs(y = expression(beta[1]), x = NULL) +
+           facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+           guides(linetype = "none") +
+           theme_minimal()
+gamma_0 <- ggplot(subset(d2_plt, param == "sigma" & coef == "varying_intercept")) +
+           geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+           labs(y = expression(gamma[0]), x = NULL) +
+           facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+           guides(linetype = "none") +
+           theme_minimal()
+gamma_1 <- ggplot(subset(d2_plt, param == "sigma" & coef == "varying_coef")) +
+           geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+           labs(y = expression(gamma[1])) +
+           facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+           guides(linetype = "none") +
+           theme_minimal()
 
 library("lemon")
-grid_arrange_shared_legend(gm2_ic, gm2_vc, gs2_ic, gs2_vc, nrow = 4, ncol = 1, position = "bottom")
+grid_arrange_shared_legend(beta_0, beta_1, gamma_0, gamma_1, nrow = 4, ncol = 1, position = "bottom")
 ```
+
+
+
+### Discussion
+
+This 'proof of concept' demonstrates how the new benchmark dataset can be used
+for a specific application ($2m$ temperature, station based, ensemble forecasts only)
+using one of many methods suggested in research papers and applied studies over the
+past decades. Keep in mind that this is intended to be a motivational example and not
+any kind of reference method.
+
+
+
+
 
