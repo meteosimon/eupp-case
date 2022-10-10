@@ -23,20 +23,19 @@ options(readr.show_col_types = FALSE)
 
 
 This section/article shows a 'proof of concept' on how to use the
-post-processing benchmark data set for post-processing near surface temperature.
+(hacky phase) post-processing benchmark data set for post-processing near surface temperature.
 While many different post-processing methods have been proposed in
 the literature over the past decades, this section makes use of one of the
 models proposed by @lang2020, a station-based non-homogeneous Gaussian model
-with smoothly varying seasonal effects.
-
-
+with smoothly varying seasonal effects. For demonstration, the method is only
+applied to three stations across Germany for two different forecast horizons.
 
 
 
 #### Data
 
 @tbl-stations shows the three stations used which are chosen to cover different
-climatic zones with Emden on the coast of the North Sea, Wasserkuppe in
+climatic zones with Emden close to the coast of the North Sea, Wasserkuppe in
 moderately complex topography in the center of the country, and Oberstdorf
 located in a complex topographic environment in the Allgäu Alps at the southern
 boarder of Germany.
@@ -65,22 +64,23 @@ ggplot() + geom_sf(data = DEU) +
 ```
 
 The data set to train the statistical post-processing models consists of
-observed near surface temperature ($t_{2m}$) at each of these sites as well
-as bi-linearely interpolated forecasts of the near-surface temperature ($ens$)
-from the ECMWF ensemble with $50+1$ ensemble members ($0000$ UTC run) covering
-the two years 2017 and 2018.
+observed near surface temperature ($t_{2m}$) as well as bilinearely
+interpolated forecasts of the near-surface temperature ($ens$) from the ECMWF
+ensemble with $50+1$ members ($0000$ UTC run) covering the two years
+2017 and 2018.
 
 For simplicity, the data set is further restricted to two forecast steps:
-$+108h$ and $+120h$ which correspond to  $+4$ days and $12$ hours ($1200$ UTC) and
-$+5$ days ($0000$ UTC) to highlight possible differences in the statistical
-characteristic for different times of the day (noon/midnight).
+$+108h$ and $+120h$ which correspond to a forecast horizon of $+4$ days and
+$12$ hours ($1200$ UTC) and $+5$ days ($0000$ UTC) to highlight possible
+differences in the statistical characteristic for different times of the day
+(noon/midnight).
 
-For each station, forecast step and date, the ensemble mean
+For each station, forecast step, and date, the ensemble mean
 ($\overline{\mathrm{ens}}$) as well as the ensemble log-standard deviation
-($log(\mathrm{sd}(ens))$) are calculated which serve as the independent
+($log(\mathrm{sd}(ens))$) is calculated which serve as the independent
 variables (covariates) in the statistical model. In addition, the day of 
-the year ($\mathrm{yday}$; Julian day $- 1$) is added as an additional
-variable used to train the models.
+the year ($\mathrm{yday}$; Julian day $-1$) is added as an additional
+to model varying seasonal effects.
 
 A Python script for downloading
 and preparing the data set as described can be
@@ -93,62 +93,56 @@ and preparing the data set as described can be
 
 ### Methodology
 
-As described by @lang2020 in detail, the response (observed near-surface temperature; $t_{2m}$)
-is assumed to follow a Gaussian distribution $\mathcal{N}$ which is defined by the
-two parameters $\mu$ (location) and $\sigma$ (scale).
+As described by @lang2020 in detail, the response (observed temperature;
+$t_{2m}$) is assumed to follow a Gaussian distribution
+$\mathcal{N}()$ defined by the two parameters $\mu$ (location) and
+$\sigma$ (scale).
 
 $$
 t_{2m} \sim \mathcal{N}(\mu, \sigma)
 $$
 
-Both parameters can be expressed by an additive predictor $\eta_\bullet$. In the classical
-non-homogeneous Gaussian regression the following specification is used frequently:
+Both parameters can be expressed by an additive predictor $\eta_\bullet$
+including zero or more explanatory variables. In the classical non-homogeneous
+Gaussian regression, the following specification is frequently used:
 
 $$
-\mu = \eta_\mu = \beta_0 + \beta_1 \overline{\mathmf{ens}} and
-$$
-
-$$
-log(\sigma) = \eta_\sigma = \gamma_0 + \gamma_1 log(\mathmf{sd}(\mathmf{ens}))
-$$
-
-
-where 
-
-RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
-RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
-RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
-RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
-RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
-RETO RETO RETO RETO RETO RETO RETO RETO RETO RETO
-
-While the location parameter drives the expectation, the scale defines the
-width of the distribution. Bo
-
-
-
-
-Both parameters are expressed by a linear predictor
-including a seasonal varying intercept ($\beta_0$, $\gamma_0$) and seasonal varying
-slope coefficient ($\beta_1$, $\gamma_1$), all of which are smooth cyclic P-splines
-and allow to adjust for different statistical characteristics over the course of the year.
-
-$$
-\mu = \beta_0(\mathrm{yday}) + \beta_1(\mathrm{yday}) \cdot \overline{\mathrm{ens}}
+\mu = \eta_\mu = \beta_0 + \beta_1 \overline{\text{ens}},
 $$
 
 $$
-log(\sigma) = \gamma_0(\mathrm{yday}) + \gamma_1(\mathrm{yday}) \cdot log(\mathrm{sd}(\mathrm{ens}))
+log(\sigma) = \eta_\sigma = \gamma_0 + \gamma_1 log(\text{sd}(\text{ens})),
 $$
 
+where the ensemble mean ($\overline{\text{ens}}$) drives the location, while
+the ensemble standard deviation ($\text{sd}(\text{sd})$) drives the scale of
+the distribution. Both predictors $\eta_\bullet$ allow to correct for a
+potential forecast bias ($\beta_0$; $\gamma_0$) as well as adjusting the linear
+relation ship between the response and the 
+corresponding covariate (via $\beta_1$; $\gamma_1$).
 
+However, ensemble forecast errors might show a seasonal dependency, e.g., a
+positive bias during the cold season and a warm bias during the warm season.
+To allow the statistical model to depict such seasonal dependencies, the two
+additive predictors are extended to:
 
+$$
+\mu = \beta_0(\text{yday}) + \beta_1(\text{yday}) \cdot \overline{\text{ens}},
+$$
 
+$$
+log(\sigma) = \gamma_0(\text{yday}) + \gamma_1(\text{yday}) \cdot log(\text{sd}(\text{ens})).
+$$
+
+All regression coefficients are now smooth functions which depend on the day of the year
+($f(\text{yday}); cyclic P-splines). Conceptually, this is similar to using a rolling
+window training period (e.g., $\pm30$days).
 
 
 ### Estimates and Results
 
 ```{r setup}
+#| code-fold: true
 library("tidyverse")
 library("bamlss")
 set.seed(6020) # seed for reproducibility
@@ -187,12 +181,12 @@ predict_effects <- function(b, file_name) {
     # Extracting station ID and forecast step (in hours) form csv file name
     station <- regmatches(file_name, regexpr("(?<=[_])[0-9]+(?=_)", file_name, perl = TRUE)) # char!
     step    <- as.integer(regmatches(file_name, regexpr("(?<=_)[0-9]+(?=\\.csv$)", file_name, perl = TRUE)))
-    
+
     # Setting up 'grid' (df) with effects to be computed
     args <- data.frame(term  = c("s(yday)", "s(yday,by=ens_mean)", "s(yday)", "s(yday,by=log_ens_sd)"),
                        param = rep(c("mu", "sigma"), each = 2),
                        coef  = paste("varying", rep(c("intercept", "coef"), times = 2), sep = "_"))
-            
+
     # Compute effects
     res <- list()
     nd  <- data.frame(yday = 0:366, ens_mean = 1, log_ens_sd = 1)
@@ -208,23 +202,29 @@ predict_effects <- function(b, file_name) {
 ```
 
 ```{r read-data}
+#| code-fold: true
 # Finding and reading available datasets
 files <- list.files(pattern = "euppens.*csv")
 data  <- setNames(map(files, read_csv), files)
 ```
 
 ```{r model}
+#| code-fold: true
 # Training post-processing models
 models <- setNames(map(data, train_models), files)
 ```
 
 
 ```{r predict}
+#| code-fold: true
 # Calculating estimated effects
 effects <- map2_dfr(models, files, predict_effects)
+stations <- list(id = c("5371", "5839", "3730"), name = c("Wasserkuppe", "Emden", "Oberstdorf"))
+effects <- transform(effects, station = factor(station, stations$id, stations$name))
 ```
 
 ```{r plot}
+#| eval: false
 #| code-fold: true
 d_plt <- effects %>%
     filter(coef == "varying_coef") %>%
@@ -251,6 +251,7 @@ grid_arrange_shared_legend(gm, gs, ncol = 2, position = "right")
 ```
 
 ```{r plot2}
+#| eval: false
 #| code-fold: true
 d_plt_ic <- effects %>%
     filter(coef == "varying_intercept") %>%
@@ -276,7 +277,44 @@ grid_arrange_shared_legend(gm_ic, gs_ic, ncol = 2, position = "right")
 ```
 
 ```{r combine-plots}
+#| eval: false
 grid_arrange_shared_legend(gm_ic, gm, gs_ic, gs, ncol = 4, position = "bottom")
 ```
 
+### 
+
+```{r plot_vertical_all}
+#| fig.width: 5
+#| fig.height: 7
+#| code-fold: true
+d2_plt <- effects %>% mutate(lty = ifelse(prob == "mid", "1", "4"), step = paste("+", step, "h", sep = ""))
+
+gm2_ic <- ggplot(subset(d2_plt, param == "mu" & coef == "varying_intercept")) +
+          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+          labs(y = expression(beta[0]), x = NULL) +
+          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+          guides(linetype = "none") +
+          theme_minimal()
+gm2_vc <- ggplot(subset(d2_plt, param == "mu" & coef == "varying_coef")) +
+          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+          labs(y = expression(beta[1]), x = NULL) +
+          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+          guides(linetype = "none") +
+          theme_minimal()
+gs2_ic <- ggplot(subset(d2_plt, param == "sigma" & coef == "varying_intercept")) +
+          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+          labs(y = expression(gamma[0]), x = NULL) +
+          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+          guides(linetype = "none") +
+          theme_minimal()
+gs2_vc <- ggplot(subset(d2_plt, param == "sigma" & coef == "varying_coef")) +
+          geom_line(aes(x = yday, y = value, linetype = lty, group = interaction(station, prob), col = station)) +
+          labs(y = expression(gamma[1])) +
+          facet_grid(rows = NULL, cols = vars(step), switch = "y") +
+          guides(linetype = "none") +
+          theme_minimal()
+
+library("lemon")
+grid_arrange_shared_legend(gm2_ic, gm2_vc, gs2_ic, gs2_vc, nrow = 4, ncol = 1, position = "bottom")
+```
 
