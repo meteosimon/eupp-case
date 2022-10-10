@@ -75,12 +75,18 @@ def main(args):
     # Fetching station meta if needed
     # ---------------------------------------------------------------
     station_meta_csv = os.path.join(args.prefix, f"{args.prefix}_{args.param}_{args.country}_stationdata.csv")
+    from time import time
+    time_start = time()
     if args.nocache or not os.path.isfile(station_meta_csv):
         log.info("Extracting station meta data")
         station_meta = get_station_meta(fcs, obs)
         station_meta.to_csv(station_meta_csv)
         print(station_meta.head())
         del station_meta # Not used anymore in this script
+    time_elapsed = time() - time_start
+    log.info(f"Time required to extract station meta:  {time_elapsed:.2f} seconds")
+    print("Exit here")
+    sys.exit(3)
 
     # ---------------------------------------------------------------
     # Time check

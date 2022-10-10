@@ -46,6 +46,7 @@ def get_station_meta(fcs, obs):
     # Fetching information
     res = []
     for i in range(obs.dims["station_id"]):
+        print(i)
         tmp = {}
         for k in fcs_req: tmp[k] = fcs.get(k).values[i]
         for k in obs_req: tmp[k] = obs.get(k).values[i]

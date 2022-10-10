@@ -33,16 +33,34 @@ def get_data(country, param, cachedir = "_cache", do_cache = True):
                 raise Exception(e)
         print(f"Cachefile: {cachefile}")
 
+    # If the country is 'swtizerland' this is in the restrictec area and only
+    # available via EWC (cloud)
+    if country == "switzerland":
+        server_path = "/mnt/benchmark-training-dataset-zarr-restricted/mnt/benchmark-training-dataset-zarr-restricted/data/stations_data"
+    else:
+        server_path = "https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data"
+
     # Prepare data if needed
     if not do_cache or not os.path.isfile(cachefile):
         log.info(f"{cachefile} not existing: Downloading data")
-        target_fcs = fsspec.get_mapper(f"https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_ensemble_forecasts_surface_{country.lower()}.zarr")
-        fcs = xr.open_zarr(target_fcs)[[param]]
+        log.info("Load and subset Obs")
+
+        # NOTE: Take care of not creating // in the URL, zarr does not like it at all
+
+        # Reading forecasts
+        target_file = f"{server_path}/stations_ensemble_forecasts_surface_{country.lower()}.zarr"
+        log.info(f"Reading: {target_file}")
+        target_fcs = fsspec.get_mapper(target_file)
+        del target_file
+        fcs = xr.open_zarr(target_fcs, consolidated = True)[[param]]
         fcs_vars = fcs.var().variables
 
-        log.info("Load and subset Obs")
-        target_obs = fsspec.get_mapper(f"https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data/stations_forecasts_observations_surface_{country.lower()}.zarr")
-        obs = xr.open_zarr(target_obs)[[param]]
+        # Reading observations
+        log.info(f"Reading: {target_file}")
+        target_file = f"{server_path}/stations_forecasts_observations_surface_{country.lower()}.zarr"
+        target_obs = fsspec.get_mapper(target_file)
+        del target_file
+        obs = xr.open_zarr(target_obs, consolidated = True)[[param]]
         obs_vars = obs.var().variables
 
         if not param in fcs_vars: raise ValueError(f"cannot find '{param}' in fcs")
@@ -60,6 +78,7 @@ def get_data(country, param, cachedir = "_cache", do_cache = True):
         with open(cachefile, "rb") as fid:
             log.info(f"Reading data from {cachefile}")
             [fcs, obs] = pickle.load(fid)
+    log.info("Returning forecast data (fcs) and observations (obs) now")
 
     return [fcs, obs]
 
