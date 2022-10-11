@@ -34,5 +34,5 @@ rdsinfo <- lapply(models, get_file_info, dir = "../euppens_rds")
 # Final result
 res <- csvinfo
 for (rec in rdsinfo) res <- merge(res, rec, all = TRUE)
-head(res)
+print(res)
 

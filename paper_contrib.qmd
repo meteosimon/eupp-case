@@ -27,24 +27,29 @@ This section/article shows a 'proof of concept' on how to use the
 While many different post-processing methods have been proposed in
 the literature over the past decades, this section makes use of one of the
 models proposed by @lang2020, a station-based non-homogeneous Gaussian model
-with smoothly varying seasonal effects. For demonstration, the method is only
+with smoothly varying seasonal effects. For demonstration, the method is
 applied to three stations across Germany for two different forecast horizons.
 
 
 
 #### Data
 
-@tbl-stations shows the three stations used which are chosen to cover different
-climatic zones with Emden close to the coast of the North Sea, Wasserkuppe in
-moderately complex topography in the center of the country, and Oberstdorf
-located in a complex topographic environment in the Allgäu Alps at the southern
-boarder of Germany.
+@tbl-stations shows the three stations used which have been selected to cover
+different climatic zones with Emden close to the coast of the North Sea,
+Wasserkuppe in moderately complex topography in the center of the country, and
+Oberstdorf located in a complex topographic environment in the Allgäu Alps at
+the southern border of Germany.
 
 ```{r stations, echo = FALSE}
 #| label: tbl-stations
-#| tbl-cap: "Stations used in the case study."
-knitr::kable(transform(read_csv("eupp_station_meta.csv"),
-             altitude = as.integer(round(altitude)), land_usage = NULL))
+#| tbl-cap: Stations used in the case study. Altitude in meters a.m.s.l.,
+#|          longitude and latitude in degrees East and North, respectively.
+tmp <- read_csv("eupp_station_meta.csv")
+knitr::kable(transmute(tmp,
+                       Name      = station_name,
+                       Altitude  = as.integer(round(altitude)),
+                       Longitude = round(longitude, 4),
+                       Latitude  = round(latitude,  4)))
 ```
 
 ```{r}
@@ -257,8 +262,9 @@ more reliable uncertainty information.
 
 ```{r plot_vertical_all}
 #| label: fig-effects
-#| fig-cap: Estimated seasonal varying effects $\beta_0()$, $\beta_1()$, $\gamma_0()$, and
-#|          $\gamma_1()$ (top down) for the two forecast steps $+108h$ (noon) and $+120h$ (midnight).
+#| fig-cap: Estimated seasonal varying effects $\beta_0(\text{yday})$, $\beta_1(\text{yday})$,
+#|          $\gamma_0(\text{yday})$, and $\gamma_1(\text{yday})$ (top down) for the two
+#|          forecast steps $+108h$ (noon) and $+120h$ (midnight).
 #|          The lines show the mean effect (solid) as well as the 95% confidence interval (dashed) of
 #|          all three stations.
 #| fig.width: 5
