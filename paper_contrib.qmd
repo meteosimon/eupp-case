@@ -22,8 +22,8 @@ options(readr.show_col_types = FALSE)
 ```
 
 
-This section/article shows a 'proof of concept' on how to use the
-(hacky phase) post-processing benchmark data set for post-processing near surface temperature.
+This section prooves the suitability of the (hacky phase) post-processing
+benchmark data set for testing post-processing techniques for near surface temperature.
 While many different post-processing methods have been proposed in
 the literature over the past decades, this section makes use of one of the
 models proposed by @lang2020, a station-based non-homogeneous Gaussian model
@@ -34,7 +34,7 @@ applied to three stations across Germany for two different forecast horizons.
 
 #### Data
 
-@tbl-stations shows the three stations used which are chosen to cover different
+The three stations are chosen (@tbl-stations) to cover different
 climatic zones with Emden close to the coast of the North Sea, Wasserkuppe in
 moderately complex topography in the center of the country, and Oberstdorf
 located in a complex topographic environment in the Allgäu Alps at the southern
@@ -82,9 +82,9 @@ variables (covariates) in the statistical model. In addition, the day of
 the year ($\mathrm{yday}$; Julian day $-1$) is added as an additional
 to model varying seasonal effects.
 
-A Python script for downloading
-and preparing the data set as described can be
-`r xfun::embed_file("etl.py", name = "etl.py", text = "downloaded here")`.
+Infromation regarding the
+`r xfun::embed_file("etl.py", name = "etl.py", text = "Python script")`
+for downloading and preparing the data set as described are given in the Open Research/Code Availability section.
 
 
 
@@ -115,30 +115,32 @@ $$
 $$
 
 where the ensemble mean ($\overline{\text{ens}}$) drives the location, while
-the ensemble standard deviation ($\text{sd}(\text{sd})$) drives the scale of
+the ensemble standard deviation ($\text{sd}(\text{ens})$) drives the scale of
 the distribution. The log-link for the scale parameter is used to ensure positivity.
 Both predictors $\eta_\bullet$ allow to correct for a
 potential forecast bias ($\beta_0$; $\gamma_0$) as well as adjusting the linear
-relation ship between the response and the 
+relationship between the response and the 
 corresponding covariate (via $\beta_1$; $\gamma_1$).
 
 However, ensemble forecast errors might show a seasonal dependency, e.g., a
 positive bias during the cold season and a warm bias during the warm season.
-To allow the statistical model to depict such seasonal dependencies, the two
-additive predictors are extended to:
+In the early days of ensemble model output statistics @gneiting2005 proposed
+to address this seasonality by using a rolling window training period (e.g., $\pm30$days).
+Here, we apply allow the statistical model to depict such seasonal dependencies
+by extending the two additive predictors,
 
 $$
 \mu = \beta_0(\text{yday}) + \beta_1(\text{yday}) \cdot \overline{\text{ens}},
 $$ {#eq-mu}
 
 $$
-\log(\sigma) = \gamma_0(\text{yday}) + \gamma_1(\text{yday}) \cdot \log(\text{sd}(\text{ens})).
+\log(\sigma) = \gamma_0(\text{yday}) + \gamma_1(\text{yday}) \cdot \log(\text{sd}(\text{ens})),
 $$ {#eq-sigma}
 
-All regression coefficients are now smooth functions which depend on the day of the year
-($f(\text{yday}$); cyclic P-splines). Conceptually, this is similar to using a rolling
-window training period (e.g., $\pm30$days).
-In an ideal world where the ensemble forecasts are prefect, $\beta_0$/$\gamma_0$ would be $0.0$,
+that all regression coefficients are now smooth functions which depend on the day of the year
+($f(\text{yday}$); cyclic P-splines).
+For a bias free ensemble whose spread matches with the forecast uncertainty
+the interpretation of the coefficients is as follows $\beta_0$/$\gamma_0$ would be $0.0$,
 while $\beta_1$/$\gamma_1$ would be $1.0$ resulting in $\mu = \overline{\text{ens}}$ and
 $\log(\sigma) = \log(\text{sd}(\text{ens}))$.
 
@@ -235,8 +237,9 @@ described briefly.
 
 For station Emden, $+108h$ ahead (green; left column) both effects for the location
 parameter $mu$ ($\beta_0$, $\beta_1$) are close to $0.0$ and $1.0$, respectively.
-This indicates that the ensemble is able to accurately predict the expected temperature
-via the mean of the ensemble. The effects for the log-scale ($\log(\sigma)$; $\gamma_0$, $\gamma_1$)
+This means that a change of $1^{\circ}C$ in the ensemble mean corresponds to a
+change of $1^{\circ}C$ in the expected two meter temperature.
+The effects for the log-scale ($\log(\sigma)$; $\gamma_0$, $\gamma_1$)
 also show no distinct seasonal pattern with an average mean effect of
 $\bar{\gamma}_0 = `r round(emden$gamma_0, 3)`$ and
 $\bar{\gamma}_1 = `r round(emden$gamma_0, 3)`$ which indicates that the ensemble is overall
