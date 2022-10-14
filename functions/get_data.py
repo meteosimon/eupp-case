@@ -39,7 +39,7 @@ def get_data(country, param, reforecast, cachedir = "_cache", do_cache = True):
 
     # If the country is 'swtizerland' this is in the restrictec area and only
     # available via EWC (cloud)
-    if country in ["switzerland", "belgium"]:
+    if country in ["switzerland"]:
         server_path = "/mnt/benchmark-training-dataset-zarr-restricted/mnt/benchmark-training-dataset-zarr-restricted/data/stations_data"
     else:
         server_path = "https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data"

@@ -101,9 +101,9 @@ def main(args):
         # ---------------------------------------------------------------
         # Looping over all stations and lead times/steps
         # ---------------------------------------------------------------
-        for station_id in obs.get("station_id").values[0:2]:
+        for station_id in obs.get("station_id").values:
             station_id = int(station_id)
-            for step in obs.get("step").values[0:2]:
+            for step in obs.get("step").values:
                 # Convert forecast step to hours
                 step_hours = int(step / 1e9 / 3600) # convert to hours
                 log.info(f"Processing data for station {station_id:5d} {step_hours:+4d}h ahead; {reforecast=}.")
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     # ---------------------------------------------------------------
     parser = argparse.ArgumentParser(f"{sys.argv[0]}")
     parser.add_argument("-c", "--country",
-            choices = ["germany", "france", "netherlands", "switzerland", "austria", "belgium"],
+            choices = ["germany", "france", "netherlands", "switzerland", "austria"],
             type = str.lower, default = "germany",
             help = "Name of the country to be processed.")
     parser.add_argument("-p", "--param", type = str.lower, default = "t2m",
