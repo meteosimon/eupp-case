@@ -2,6 +2,7 @@
 
 library("ncdf4") # Required later to load the data
 library("argparse")
+source("functions.R")
 
 parser <- ArgumentParser(description = "Estimating ESSD benchmark models")
 parser$add_argument("-s", "--station_id", type = "integer",
@@ -10,8 +11,10 @@ args <- parser$parse_args()
 if (is.null(args$station_id)) { parser$print_help(); stop(2); }
 
 
+args <- list(station_id = 11308)
+
 # Single step
-test  <- get_data(args$station_id, steps = 0, type = "test")
+test  <- get_data(args$station_id, steps = 12, type = "test")
 class(test)
 head(test, n = 3)
 

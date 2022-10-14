@@ -14,16 +14,20 @@ import logging as log
 log.basicConfig(level = log.INFO)
 
 # -------------------------------------------------------------------
-def get_data(country, param, cachedir = "_cache", do_cache = True):
+def get_data(country, param, reforecast, cachedir = "_cache", do_cache = True):
     """get_data(cachefile)
 
     ... [tbd]
     """
     assert isinstance(country, str), TypeError("argument 'country' must be string")
     assert isinstance(param, str), TypeError("argument 'param' must be string")
+    assert isinstance(reforecast, bool), TypeError("argument 'reforecast' must be bool")
+
+    # Forecast type
+    ftype = "reforecasts" if reforecast else "forecasts"
 
     # If we have caching on, make sure the output dir exists and generate output name
-    cachefile = os.path.join(cachedir, f"_cached_{country.lower()}_{param}.pickle")
+    cachefile = os.path.join(cachedir, f"_cached_{country.lower()}_{param}_{ftype}.pickle")
     if do_cache:
         if not os.path.isdir(cachedir):
             print(f"Creating cache directory '{cachedir}'")
@@ -35,7 +39,7 @@ def get_data(country, param, cachedir = "_cache", do_cache = True):
 
     # If the country is 'swtizerland' this is in the restrictec area and only
     # available via EWC (cloud)
-    if country == "switzerland":
+    if country in ["switzerland", "belgium"]:
         server_path = "/mnt/benchmark-training-dataset-zarr-restricted/mnt/benchmark-training-dataset-zarr-restricted/data/stations_data"
     else:
         server_path = "https://storage.ecmwf.europeanweather.cloud/eumetnet-postprocessing-benchmark-1st-phase-training-dataset/data/stations_data"
@@ -48,7 +52,7 @@ def get_data(country, param, cachedir = "_cache", do_cache = True):
         # NOTE: Take care of not creating // in the URL, zarr does not like it at all
 
         # Reading forecasts
-        target_file = f"{server_path}/stations_ensemble_forecasts_surface_{country.lower()}.zarr"
+        target_file = f"{server_path}/stations_ensemble_{ftype}_surface_{country.lower()}.zarr"
         log.info(f"Reading: {target_file}")
         target_fcs = fsspec.get_mapper(target_file)
         del target_file
@@ -56,7 +60,7 @@ def get_data(country, param, cachedir = "_cache", do_cache = True):
         fcs_vars = fcs.var().variables
 
         # Reading observations
-        target_file = f"{server_path}/stations_forecasts_observations_surface_{country.lower()}.zarr"
+        target_file = f"{server_path}/stations_{ftype}_observations_surface_{country.lower()}.zarr"
         log.info(f"Reading: {target_file}")
         target_obs = fsspec.get_mapper(target_file)
         del target_file
