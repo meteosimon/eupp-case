@@ -25,7 +25,8 @@ if __name__ == "__main__":
     CSVDIR = "csvdata"
 
     # Start downloading
-    for c in ["germany", "france", "netherlands", "switzerland", "austria"]:
+    #for c in ["germany", "france", "netherlands", "switzerland", "austria"]:
+    for c in ["germany", "france", "netherlands", "austria"]:
         main({"prefix": "euppens", "country": c.lower(), "param": "t2m", "nocache": False})
 
     print("\n .... everything done.")

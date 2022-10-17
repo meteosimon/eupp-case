@@ -36,64 +36,117 @@ step <- ifelse(nchar(step) == 0, 6, as.integer(step))
 # - csvfile:   input file
 # - rdsfile:   output file
 # ---------------------------------------------------------
-dir     <- file.path("..", "euppens")
-csvfile <- file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%03d.csv", args$country, args$station, step))
-rdsfile <- file.path("..", "euppens_rds", sprintf("bamlss_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
+dir      <- file.path("..", "euppens")
+csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
+                                                args$station, c("training", "test"), step)), c("training", "test"))
+rdsfile  <- file.path("..", "euppens_rds", sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
 if (!dir.exists("../euppens_rds")) dir.create("../euppens_rds")
 
-# If the csvfile does not exist - ignore
-# If the rdsfile does already exist - ignore as well
-# Else we do the job
-if (!file.exists(csvfile)) {
-    stop("Input file", csvfile, "missing\n")
-} else if (file.exists(rdsfile)) {
-    cat("Output file", rdsfile, "exists - skip.\n")
-} else {
-    # Reading training data set
-    df <- subset(transform(read.csv(csvfile), log_ens_sd = log(ens_sd)),
-                 select = c(valid_time, yday, t2m_obs, ens_mean, ens_sd, log_ens_sd))
-    df <- subset(df, !is.na(t2m_obs) & !is.na(yday) & !is.na(ens_mean) & !is.na(log_ens_sd))
+# If the ouput file exists we can stop here
+if (file.exists(rdsfile)) cat("Output file", rdsfile, "exists - skip.\n")
 
-    # Estimating the model
-    f <- list(
-        t2m_obs ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = ens_mean),
-                ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = log_ens_sd)
-    )
-    set.seed(args$station * 1e3 + step) # for reproducibility
-    mod <- bamlss(f, data = df, verbose = FALSE, n.iter = 12000, burnin = 2000, thin = 10,
-                  quiet = TRUE, light = TRUE)
-    
-    c95 <- function (x) {
-        qx <- quantile(x, probs = c(0.025, 0.50, 0.975), na.rm = TRUE)
-        return(setNames(c(qx[[1]], mean(x), qx[[3]]), c("lower", "mid", "upper")))
-    }
-    predict_effects <- function(mod) {
-        # Setting up 'grid' (df) with effects to be computed
-        args <- data.frame(term  = c("s(yday)", "s(yday,by=ens_mean)", "s(yday)", "s(yday,by=log_ens_sd)"),
-                           param = rep(c("mu", "sigma"), each = 2),
-                           coef  = paste("varying", rep(c("intercept", "coef"), times = 2), sep = "_"))
-    
-        # Compute effects
-        res <- list()
-        nd  <- data.frame(yday = 0:366, ens_mean = 1, log_ens_sd = 1)
-        for (i in seq_len(NROW(args))) {
-            res[[i]] <- predict(mod, nd, term = args$term[i], intercept = FALSE, type = "link", FUN = c95, model = args$param[i]) %>%
-                        as_tibble() %>%
-                        mutate(yday = nd$yday) %>%
-                        pivot_longer(-yday, names_to = "prob") %>%
-                        mutate(param = args$param[i], coef = args$coef[i])
-        }
-        return(bind_rows(res))
-    }
-    
-    # Calculating estimated effects
-    effects <- predict_effects(mod)
-    res     <- cbind(df, as.data.frame(predict(mod)))
-    result  <- list(data = res, effects = as.data.frame(effects), model = mod,
-                    packages = list(bamlss = packageVersion("bamlss")))
-    saveRDS(result, rdsfile)
+# Else we will read the test and training data sets
+for (f in csvfiles) stopifnot(file.exists(f))
+train <- tryCatch(read.csv(csvfiles["training"]),
+                  warning = function(w) warning(w),
+                  error = function(e) stop("Problems reading", csvfiles["training"]))
+test  <- tryCatch(read.csv(csvfiles["test"]),
+                  warning = function(w) warning(w),
+                  error = function(e) stop("Problems reading", csvfiles["test"]))
 
+# ---------------------------------------------------------
+# Missing values
+# ---------------------------------------------------------
+rows_with_na <- function(x, cols = c("valid_time", "yday", "t2m_obs", "ens_mean", "ens_sd")) rowSums(is.na(x[, cols])) > 0
+na_train <- rows_with_na(train)
+na_test  <- rows_with_na(test)
+cat("Number of rows with missing values ", sum(na_train), " (traning) ", sum(na_test), " (test)\n")
+if (sum(na_train) > (nrow(train) * .2)) stop("Too many missing values in training data set")
+
+# ---------------------------------------------------------
+# Estimating the model
+# ---------------------------------------------------------
+train <- transform(train, log_ens_sd = log(ens_sd), ens_sd = NULL)
+test  <- transform(test,  log_ens_sd = log(ens_sd), ens_sd = NULL)
+
+# Model formula
+f <- list(
+    t2m_obs ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = ens_mean),
+            ~ s(yday, bs = "cc") + s(yday, bs = "cc", by = log_ens_sd)
+)
+set.seed(args$station * 1e3 + step) # for reproducibility
+
+mod <- tryCatch(bamlss(f, data = train[!na_train, ],
+                       verbose = FALSE, n.iter = 12000, burnin = 2000, thin = 10, quiet = TRUE, light = TRUE),
+                warning = function(w) warning(w),
+                error = function(e) stop("Problems estimating the bamlss model: ", e))
+
+
+# ---------------------------------------------------------
+# Calculate effects as we would like to store them for now
+# ---------------------------------------------------------
+c95 <- function (x) {
+    qx <- quantile(x, probs = c(0.025, 0.50, 0.975), na.rm = TRUE)
+    return(setNames(c(qx[[1]], mean(x), qx[[3]]), c("lower", "mid", "upper")))
 }
+predict_effects <- function(mod) {
+    # Setting up 'grid' (df) with effects to be computed
+    args <- data.frame(term  = c("s(yday)", "s(yday,by=ens_mean)", "s(yday)", "s(yday,by=log_ens_sd)"),
+                       param = rep(c("mu", "sigma"), each = 2),
+                       coef  = paste("varying", rep(c("intercept", "coef"), times = 2), sep = "_"))
+
+    # Compute effects
+    res <- list()
+    nd  <- data.frame(yday = 0:366, ens_mean = 1, log_ens_sd = 1)
+    for (i in seq_len(NROW(args))) {
+        res[[i]] <- predict(mod, nd, term = args$term[i], intercept = FALSE, type = "link", FUN = c95, model = args$param[i]) %>%
+                    as_tibble() %>%
+                    mutate(yday = nd$yday) %>%
+                    pivot_longer(-yday, names_to = "prob") %>%
+                    mutate(param = args$param[i], coef = args$coef[i])
+    }
+    return(bind_rows(res))
+}
+effects <- predict_effects(mod)
+
+
+# ---------------------------------------------------------
+# Make prediction (training and test)
+# ---------------------------------------------------------
+append_prediction <- function(x, na, mod) {
+    tmp <- predict(mod, newdata = x[!na,])
+    for (n in names(tmp)) {
+            x[, n]    <- NA
+            x[!na, n] <- tmp[[n]]
+    }
+    return(x)
+}
+res_train <- append_prediction(train, na_train, mod)
+res_test  <- append_prediction(test,  na_test,  mod)
+    
+result  <- list(training = res_train,
+                test     = res_test,
+                model    = mod,
+                effects = as.data.frame(effects),
+                packages = list(bamlss = packageVersion("bamlss")))
+saveRDS(result, rdsfile)
+
+
+
+
+library("crch")
+mod <- crch(t2m_obs ~ ens_mean | log(ens_sd), data = train, link.scale = "log", dist = "gaussian")
+result_train <- cbind(train, predict(mod, type = "parameter", newdata = train))
+result_test  <- cbind(test,  predict(mod, type = "parameter", newdata = test))
+
+result <- list(training = result_train,
+               test     = result_test,
+               model    = mod,
+               packages = list(crch = packageVersion("crch")))
+saveRDS(result, rdsfile)
+
+
+
 
 
 

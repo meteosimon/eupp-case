@@ -33,32 +33,46 @@ step <- ifelse(nchar(step) == 0, 0, as.integer(step))
 # - csvfile:   input file
 # - rdsfile:   output file
 # ---------------------------------------------------------
-dir     <- file.path("..", "euppens")
-csvfile <- file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%03d.csv", args$country, args$station, step))
-rdsfile <- file.path("..", "euppens_rds", sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
+dir      <- file.path("..", "euppens")
+csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
+                                                args$station, c("training", "test"), step)), c("training", "test"))
+rdsfile  <- file.path("..", "euppens_rds", sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
 if (!dir.exists("../euppens_rds")) dir.create("../euppens_rds")
 
-# If the csvfile does not exist - ignore
-# If the rdsfile does already exist - ignore as well
-# Else we do the job
-if (!file.exists(csvfile)) {
-    stop("Input file", csvfile, "missing\n")
-} else if (file.exists(rdsfile)) {
-    cat("Output file", rdsfile, "exists - skip.\n")
-} else {
-    df <- read.csv(csvfile)
-    df <- subset(df, select = c(valid_time, yday, t2m_obs, ens_mean, ens_sd))
-    df <- subset(df, !is.na(t2m_obs) & !is.na(yday) & !is.na(ens_mean) & !is.na(ens_sd))
-    print(head(df, n = 3))
+# If the ouput file exists we can stop here
+if (file.exists(rdsfile)) cat("Output file", rdsfile, "exists - skip.\n")
 
-    library("crch")
-    mod <- crch(t2m_obs ~ ens_mean | log(ens_sd), data = df, link.scale = "log", dist = "gaussian")
-    res <- cbind(df, predict(mod, type = "parameter"))
-    print(head(res))
+# Else we will read the test and training data sets
+for (f in csvfiles) stopifnot(file.exists(f))
+train <- tryCatch(read.csv(csvfiles["training"]),
+                  warning = function(w) warning(w),
+                  error = function(e) stop("Problems reading", csvfiles["training"]))
+test  <- tryCatch(read.csv(csvfiles["test"]),
+                  warning = function(w) warning(w),
+                  error = function(e) stop("Problems reading", csvfiles["test"]))
 
-    result <- list(data = res, model = mod, packages = list(crch = packageVersion("crch")))
-    saveRDS(result, rdsfile)
+# Estimate model
+rows_with_na <- function(x, cols = c("valid_time", "yday", "t2m_obs", "ens_mean", "ens_sd")) {
+        which(rowSums(is.na(x[, cols])) > 0)
 }
+
+na_train <- rows_with_na(train)
+na_test  <- rows_with_na(test)
+
+# Less than 20% of the data? Skip!
+if (length(na_train) > (nrow(train) * .2)) stop("Too many missing values in training data set")
+
+
+library("crch")
+mod <- crch(t2m_obs ~ ens_mean | log(ens_sd), data = train, link.scale = "log", dist = "gaussian")
+result_train <- cbind(train, predict(mod, type = "parameter", newdata = train))
+result_test  <- cbind(test,  predict(mod, type = "parameter", newdata = test))
+
+result <- list(training = result_train,
+               test     = result_test,
+               model    = mod,
+               packages = list(crch = packageVersion("crch")))
+saveRDS(result, rdsfile)
 
 
 

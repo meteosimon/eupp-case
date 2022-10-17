@@ -4,7 +4,7 @@
 # Find all suitable CSV files
 stopifnot(dir.exists("../euppens"))
 csvfiles <- list.files("../euppens")
-csvfiles <- csvfiles[grepl("euppens_t2m_[a-z]+_[0-9]+_[0-9]{3}\\.csv", csvfiles)]
+csvfiles <- csvfiles[grepl("euppens_t2m_[a-z]+_[0-9]+_[a-z]+_[0-9]{3}\\.csv", csvfiles)]
 
 # Extracting country and station ID
 data <- data.frame(country = regmatches(csvfiles, regexpr("[a-z]+(?=_[0-9])", csvfiles, perl = TRUE)),
