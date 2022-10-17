@@ -37,10 +37,11 @@ step <- ifelse(nchar(step) == 0, 6, as.integer(step))
 # - rdsfile:   output file
 # ---------------------------------------------------------
 dir      <- file.path("..", "euppens")
+outdir   <- file.path("..", "results", "bamlss", sprintf("%03d", step))
+if (!dir.exists(outdir)) dir.create(outdir)
 csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
                                                 args$station, c("training", "test"), step)), c("training", "test"))
-rdsfile  <- file.path("..", "euppens_rds", sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
-if (!dir.exists("../euppens_rds")) dir.create("../euppens_rds")
+rdsfile  <- file.path(outdir, sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
 
 # If the ouput file exists we can stop here
 if (file.exists(rdsfile)) cat("Output file", rdsfile, "exists - skip.\n")
