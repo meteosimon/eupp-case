@@ -35,7 +35,7 @@ step <- ifelse(nchar(step) == 0, 0, as.integer(step))
 # ---------------------------------------------------------
 dir      <- file.path("..", "euppens")
 outdir   <- file.path("..", "results", "crch11", sprintf("%03d", step))
-if (!dir.exists(outdir)) dir.create(outdir)
+if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
 csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
                                                 args$station, c("training", "test"), step)), c("training", "test"))
 rdsfile  <- file.path(outdir, sprintf("crch11_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
