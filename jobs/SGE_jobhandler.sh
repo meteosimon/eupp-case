@@ -1,8 +1,8 @@
 #!/bin/bash
 #$ -cwd
 #$ -N _BAMLSS
-#$ -l h_rt=03:00:00
-#$ -l h_vmem=3g
+#$ -l h_rt=00:30:00
+#$ -l h_vmem=6g
 #$ -t 1-21
 
 if [ $# -ne 2 ] ; then

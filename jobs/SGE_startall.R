@@ -12,12 +12,14 @@ data <- data.frame(country = regmatches(csvfiles, regexpr("[a-z]+(?=_[0-9])", cs
 # Take unique country/station ID
 data <- unique(data)
 
-print(data)
+#print(data)
+cat("In total there are", nrow(data), "jobs to start\n")
 
 # Start the job (array jobs)
 for (i in seq_len(nrow(data))) {
+if (i < 3) next
     cmd <- sprintf("qsub SGE_jobhandler.sh %s %d", data$country[i], data$station[i])
-    #print(cmd)
+    print(cmd)
     system(cmd)
 }
 
