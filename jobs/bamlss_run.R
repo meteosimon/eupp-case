@@ -78,11 +78,17 @@ if (file.exists(rdsfile)) {
     rows_with_na <- function(x, cols = c("valid_time", "yday", "t2m_obs", "ens_mean", "ens_sd")) rowSums(is.na(x[, cols])) > 0
     na_train     <- rows_with_na(train)
     na_test      <- rows_with_na(test)
-    msg <- paste("Number of rows with missing values ", sum(na_train), " (traning) ", sum(na_test), " (test)")
-    cat(msg, "\n")
+    cat("Number of rows with missing values ", sum(na_train), " (traning) ", sum(na_test), " (test)\n")
     if (sum(na_train) > (nrow(train) * .2)) {
-        saveRDS(list(error = msg), rdsfile)
-        stop("Too many missing values in training data set")
+        # Less than 20% data. Let's see if we have about 60 for each 30 days (3 years; full seasons)
+        cat("Lots of missing values; check if requirement is met to have about 60 per 30 days (two years)\n")
+        tmp <- table(cut(k$yday, breaks = seq(0, 366, by = 30)))
+        if (!all(tmp) >= 60) {
+            msg <- "not enough data; not even 60 observations per 30 days (per month; roughly)"
+            saveRDS(list(error = msg), rdsfile)
+            stop("Too many missing values in training data set")
+        }
+        cat("We have at least about 60 observations in each month in our training data; let's continue\n")
     }
     
     # ---------------------------------------------------------
