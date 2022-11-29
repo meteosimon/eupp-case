@@ -96,7 +96,6 @@ if (file.exists(rdsfile)) {
     
     mod <- tryCatch(bamlss(f, data = train[!na_train, ],
                            verbose = FALSE, n.iter = 12000, burnin = 2000, thin = 10, quiet = TRUE, light = TRUE),
-                    warning = function(w) warning(w),
                     error = function(e) stop("Problems estimating the bamlss model: ", e))
     
     # ---------------------------------------------------------
