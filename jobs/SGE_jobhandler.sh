@@ -1,6 +1,6 @@
 #!/bin/bash
 #$ -cwd
-#$ -N _BAMLSS
+#$ -N _EUPP
 #$ -l h_rt=00:30:00
 #$ -l h_vmem=6g
 #$ -t 1-21
@@ -18,7 +18,7 @@ conda activate reto_renv
 
 if [ ${model} == "crch" ] ; then
   printf "Rscript crch_run.R -c '${country}' -s $station\n"
-  Rscript bamlss_run.R -c "${country}" -s $station
+  Rscript crch_run.R -c "${country}" -s $station
 elif [ ${model} == "bamlss" ] ; then
   printf "Rscript bamlss_run.R -c "${country}" -s $station\n"
   Rscript bamlss_run.R -c "${country}" -s $station

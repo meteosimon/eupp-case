@@ -28,7 +28,8 @@ data <- count_files(data, "crch")
 cat("In total there are", nrow(data), "jobs to start\n")
 
 # Start the job (array jobs)
-for (m in c("bamlss", "crch")) {
+####for (m in c("bamlss", "crch")) {
+for (m in c("bamlss")) {
     for (i in seq_len(nrow(data))) {
         if (data[[m]][i] == 21) next
         cmd <- sprintf("qsub SGE_jobhandler.sh %s %s %d", m, data$country[i], data$station[i])
