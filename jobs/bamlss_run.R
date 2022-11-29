@@ -82,7 +82,7 @@ if (file.exists(rdsfile)) {
     if (sum(na_train) > (nrow(train) * .2)) {
         # Less than 20% data. Let's see if we have about 60 for each 30 days (3 years; full seasons)
         cat("Lots of missing values; check if requirement is met to have about 60 per 30 days (two years)\n")
-        tmp <- table(cut(k$yday, breaks = seq(0, 366, by = 30)))
+        tmp <- table(cut(train[!na_train, ]$yday, breaks = seq(0, 366, by = 30)))
         if (!all(tmp) >= 60) {
             msg <- "not enough data; not even 60 observations per 30 days (per month; roughly)"
             saveRDS(list(error = msg), rdsfile)

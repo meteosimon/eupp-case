@@ -5,15 +5,24 @@
 #$ -l h_vmem=6g
 #$ -t 1-21
 
-if [ $# -ne 2 ] ; then
-	echo "Missing input args; stop"
-	exit 333
+if [ $# -ne 3 ] ; then
+  echo "Missing input args; stop"
+  exit 333
 fi
-country="${1}"
-station="${2}"
+model="${1}"
+country="${2}"
+station="${3}"
 
 # Activating conda environment
 conda activate reto_renv
 
-Rscript bamlss_run.R -c "${country}" -s $station
+if [ ${model} == "crch" ] ; then
+  printf "Rscript crch_run.R -c '${country}' -s $station\n"
+  Rscript bamlss_run.R -c "${country}" -s $station
+elif [ ${model} == "bamlss" ] ; then
+  printf "Rscript bamlss_run.R -c "${country}" -s $station\n"
+  Rscript bamlss_run.R -c "${country}" -s $station
+else
+  printf "ERROR: Unknown model (first input argument) ${model}\n"
+fi
 
