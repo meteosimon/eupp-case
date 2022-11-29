@@ -13,8 +13,9 @@ data <- unique(data)
 print(data)
 
 # Start the job (array jobs)
+years <- 3
 for (i in seq_len(nrow(data))) {
-    cmd <- sprintf("sbatch crch_run.R -c %s -s %d", data$country[i], data$station[i])
+    cmd <- sprintf("sbatch crch_run.R -y %d -c %s -s %d", years, data$country[i], data$station[i])
     cat("Calling:        ", cmd, "\n")
     system(cmd)
 }
