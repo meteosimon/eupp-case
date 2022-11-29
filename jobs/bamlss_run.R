@@ -1,9 +1,12 @@
 #!/usr/bin/env Rscript
 # ---------------------------------------------------------
+# Slurm config
 #SBATCH --ntasks=1
 #SBATCH --array=0,6,12,18,24,30,36,42,48,54,60,66,72,78,84,90,96,102,108,114,120
 #SBATCH --output=_job%A-%j.out
 #SBATCH --error=_job%A-%j.err
+# ---------------------------------------------------------
+# SGE config is done by another job outside
 # ---------------------------------------------------------
 
 library("argparse")
@@ -30,9 +33,17 @@ args$country <- match.arg(tolower(args$country), c("germany", "austria", "france
 # ---------------------------------------------------------
 # The step to be processed is handled by SLURM
 # ---------------------------------------------------------
-step <- Sys.getenv("SLURM_ARRAY_TASK_ID")
-# THIS IS FOR TESTING ONLY
-step <- ifelse(nchar(step) == 0, 6, as.integer(step))
+sgestep   <- Sys.getenv("SGE_TASK_ID")
+slurmstep <- Sys.getenv("SLURM_ARRAY_TASK_ID")
+if (!nchar(sgestep) == 0) {
+    step <- (as.integer(sgestep) - 1) * 6
+} else if (!nchar(slurmstep) == 0) {
+    step <- as.integer(slurmstep)
+} else {
+    # JUST FOR TESTING
+    step <- 6L
+}
+print(step)
 
 # ---------------------------------------------------------
 # Generate the input and output file name
@@ -89,7 +100,6 @@ if (file.exists(rdsfile)) {
     
     mod <- tryCatch(bamlss(f, data = train[!na_train, ],
                            verbose = FALSE, n.iter = 12000, burnin = 2000, thin = 10, quiet = TRUE, light = TRUE),
-                    warning = function(w) warning(w),
                     error = function(e) stop("Problems estimating the bamlss model: ", e))
     
     # ---------------------------------------------------------
