@@ -67,8 +67,12 @@ if (file.exists(rdsfile)) {
     rows_with_na <- function(x, cols = c("valid_time", "yday", "t2m_obs", "ens_mean", "ens_sd")) rowSums(is.na(x[, cols])) > 0
     na_train     <- rows_with_na(train)
     na_test      <- rows_with_na(test)
-    cat("Number of rows with missing values ", sum(na_train), " (traning) ", sum(na_test), " (test)\n")
-    if (sum(na_train) > (nrow(train) * .2)) stop("Too many missing values in training data set")
+    msg <- "Number of rows with missing values ", sum(na_train), " (traning) ", sum(na_test), " (test)"
+    cat(msg, "\n")
+    if (sum(na_train) > (nrow(train) * .2)) {
+        saveRDS(list(error = msg))
+        stop("Too many missing values in training data set")
+    }
     
     # ---------------------------------------------------------
     # Estimating the model
