@@ -66,9 +66,6 @@ if (args$years >= 100) {
 if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
 csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
                                                 args$station, c("training", "test"), step)), c("training", "test"))
-print(outdir)
-print(rdsfile)
-stop('d')
 
 # If the ouput file exists we can stop here
 if (file.exists(rdsfile)) {
