@@ -23,18 +23,19 @@ count_files <- function(x, model) {
 }
 data <- count_files(data, "bamlss")
 data <- count_files(data, "crch")
+data <- count_files(data, "crch03")
+data <- count_files(data, "bamlss03")
 
 #print(data)
 cat("In total there are", nrow(data), "jobs to start\n")
 
 # Start the job (array jobs)
 ####for (m in c("bamlss", "crch")) {
-for (m in c("bamlss")) {
+for (m in c("bamlss03")) {
     for (i in seq_len(nrow(data))) {
         if (data[[m]][i] == 21) next
         cmd <- sprintf("qsub SGE_jobhandler.sh %s %s %d", m, data$country[i], data$station[i])
         print(cmd)
         system(cmd)
-stop('x')
     }
 }

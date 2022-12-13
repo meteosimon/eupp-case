@@ -22,6 +22,9 @@ if [ ${model} == "crch" ] ; then
 elif [ ${model} == "bamlss" ] ; then
   printf "Rscript bamlss_run.R -c "${country}" -s $station\n"
   Rscript bamlss_run.R -c "${country}" -s $station
+elif [ ${model} == "bamlss03" ] ; then
+  printf "Rscript bamlss_run.R -c "${country}" -s $station -y 3\n"
+  Rscript bamlss_run.R -c "${country}" -s $station -y 3
 else
   printf "ERROR: Unknown model (first input argument) ${model}\n"
 fi
