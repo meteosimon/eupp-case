@@ -29,6 +29,7 @@ args <- if (interactive()) list(station = 11312, country = "austria") else parse
 
 stopifnot(is.character(args$country))
 stopifnot(is.integer(args$station), args$station > 0L)
+stopifnot(is.integer(args$years), args$years > 0L)
 args$country <- match.arg(tolower(args$country), c("germany", "austria", "france", "switzerland", "netherlands"))
 
 
@@ -62,11 +63,12 @@ if (args$years >= 100) {
     rdsfile  <- file.path(outdir, sprintf("bamlss%02d_euppens_t2m_%s_%d_%03d.rds", args$years, args$country, args$station, step))
 }
 
-
-
 if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
 csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
                                                 args$station, c("training", "test"), step)), c("training", "test"))
+print(outdir)
+print(rdsfile)
+stop('d')
 
 # If the ouput file exists we can stop here
 if (file.exists(rdsfile)) {

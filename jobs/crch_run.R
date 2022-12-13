@@ -21,6 +21,7 @@ args <- parser$parse_args()
 
 stopifnot(is.character(args$country))
 stopifnot(is.integer(args$station), args$station > 0L)
+stopifnot(is.integer(args$years), args$years > 0L)
 args$country <- match.arg(tolower(args$country), c("germany", "austria", "france", "switzerland", "netherlands"))
 
 
