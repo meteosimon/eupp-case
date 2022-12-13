@@ -21,12 +21,14 @@ parser$add_argument("-s", "--station", type = "integer",
                     help = "ID of the station to be processed")
 parser$add_argument("-c", "--country", type = "character",
                     help = "Name of the country the station is in")
-
+parser$add_argument("-y", "--years", type = "integer", default = 9999,
+        help = "Positive integer, number of years to use from the training data set; by default 'all'")
 # Has an interactive mode for testing
 args <- if (interactive()) list(station = 11312, country = "austria") else parser$parse_args()
 
 stopifnot(is.character(args$country))
 stopifnot(is.integer(args$station), args$station > 0L)
+stopifnot(is.integer(args$years), args$years > 0L)
 args$country <- match.arg(tolower(args$country), c("germany", "austria", "france", "switzerland", "netherlands"))
 
 
@@ -51,11 +53,20 @@ print(step)
 # - rdsfile:   output file
 # ---------------------------------------------------------
 dir      <- file.path("..", "euppens")
-outdir   <- file.path("..", "results", "bamlss", sprintf("%03d", step))
+dir      <- file.path("..", "euppens")
+if (args$years >= 100) {
+    outdir   <- file.path("..", "results", "crch", sprintf("%03d", step))
+    rdsfile  <- file.path(outdir, sprintf("crch_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
+} else {
+    outdir   <- file.path("..", "results", sprintf("crch%02d", args$years), sprintf("%03d", step))
+    rdsfile  <- file.path(outdir, sprintf("crch%02d_euppens_t2m_%s_%d_%03d.rds", args$years, args$country, args$station, step))
+}
 if (!dir.exists(outdir)) dir.create(outdir, recursive = TRUE)
 csvfiles <- setNames(file.path("..", "euppens", sprintf("euppens_t2m_%s_%d_%s_%03d.csv", args$country,
                                                 args$station, c("training", "test"), step)), c("training", "test"))
-rdsfile  <- file.path(outdir, sprintf("bamlss_euppens_t2m_%s_%d_%03d.rds", args$country, args$station, step))
+print(outdir)
+print(rdsfile)
+stop('d')
 
 # If the ouput file exists we can stop here
 if (file.exists(rdsfile)) {
@@ -71,6 +82,12 @@ if (file.exists(rdsfile)) {
     test  <- tryCatch(read.csv(csvfiles["test"]),
                       warning = function(w) warning(w),
                       error = function(e) stop("Problems reading", csvfiles["test"]))
+
+    if (args$years < 100) {
+        begin <- as.POSIXct(sprintf("%04d-01-01 00:00", 2017 + 1 - args$year)) - 3600 * step
+        cat("Cutting training data set to ", args$year, " years; begin = ", begin, "\n")
+        train <- subset(train, valid_time >= begin)
+    }
     
     # ---------------------------------------------------------
     # Missing values
